@@ -6,6 +6,7 @@ export class RegisterRequest {
         this.username = username;
         this.location = location;
         this.role = role || 'user';
+        this.image = null; 
     }
 
     validate() {
