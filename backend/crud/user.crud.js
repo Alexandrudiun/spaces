@@ -1,10 +1,8 @@
 import mongoose from 'mongoose';
 import { createUserModel } from '../schemas/user.schema.js';
-import { getConnection } from '../config/database.js';
-
-const User = createUserModel(getConnection());
 
 export const getAllUsers = async (req, res) => {
+    const User = createUserModel(req.app.locals.userDB);
     try {
         const users = await User.find().select('-password');
         res.status(200).json({
@@ -21,6 +19,7 @@ export const getAllUsers = async (req, res) => {
 };
 
 export const getUserById = async (req, res) => {
+    const User = createUserModel(req.app.locals.userDB);
     try {
         const user = await User.findById(req.params.id).select('-password');
         if (!user) {
@@ -43,6 +42,7 @@ export const getUserById = async (req, res) => {
 };
 
 export const createUser = async (req, res) => {
+    const User = createUserModel(req.app.locals.userDB);
     try {
         const user = await User.create(req.body);
         res.status(201).json({
@@ -59,6 +59,7 @@ export const createUser = async (req, res) => {
 };
 
 export const updateUser = async (req, res) => {
+    const User = createUserModel(req.app.locals.userDB);
     try {
         const user = await User.findByIdAndUpdate(
             req.params.id,
@@ -87,6 +88,7 @@ export const updateUser = async (req, res) => {
 };
 
 export const deleteUser = async (req, res) => {
+    const User = createUserModel(req.app.locals.userDB);
     try {
         const user = await User.findByIdAndDelete(req.params.id);
         
@@ -111,6 +113,7 @@ export const deleteUser = async (req, res) => {
 };
 
 export const updateUserImage = async (req, res) => {
+    const User = createUserModel(req.app.locals.userDB);
     try {
         if (!req.body.image) {
             return res.status(400).json({
