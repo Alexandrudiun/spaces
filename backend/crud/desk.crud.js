@@ -23,7 +23,7 @@ export const getAllDesks = async (req, res) => {
 export const getDeskById = async (req, res) => {
     const Desk = createDeskModel(req.app.locals.desksDB);
     try {
-        const desk = await Desk.findById(req.params.deskId).populate('bookings');
+        const desk = await Desk.findById(req.params.id).populate('bookings');
         if (!desk) return res.status(404).json({ status: 404, message: 'Desk not found' });
         res.status(200).json({ status: 200, message: 'Desk retrieved successfully', data: desk });
     } catch (error) {
