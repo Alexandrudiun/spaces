@@ -18,7 +18,7 @@ const deskSchema = new mongoose.Schema({
     },
     status: { 
       type: String, 
-      enum: ['pending', 'accepted', 'declined', 'cancelled'], 
+      enum: ['pending', 'accepted', 'declined'], 
       default: 'pending', // Set default to 'pending' when booking is created
       //required: true 
     },

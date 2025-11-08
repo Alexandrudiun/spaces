@@ -38,7 +38,7 @@ export const updateBookingFromDesk = async (req, res) => {
         const { bookingId, status } = req.body;
 
         // Validate status according to your schema
-        const validStatuses = ['pending', 'accepted', 'declined', 'cancelled'];
+        const validStatuses = ['pending', 'accepted', 'declined'];
         if (!status || !validStatuses.includes(status)) {
             return res.status(400).json({ 
                 error: 'Invalid status. Must be one of: pending, accepted, declined, cancelled' 
