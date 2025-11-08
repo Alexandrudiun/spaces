@@ -1,8 +1,14 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
+import express from 'express';
+import mongoose from 'mongoose';
+import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 
-require('dotenv').config();
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -37,9 +43,17 @@ usersConnection.on('error', (err) => {
 app.locals.desksDB = desksConnection;
 app.locals.usersDB = usersConnection;
 
-// Routes
-app.get('/', (req, res) => {
+// API Routes (add your API routes here before the static files)
+app.get('/api/health', (req, res) => {
     res.json({ message: 'Server is running' });
+});
+
+// Serve static files from React build
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Handle React routing - return index.html for all non-API routes
+app.use((req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Start Server
