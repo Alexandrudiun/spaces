@@ -24,11 +24,11 @@ const { desksConnection, usersConnection } = initDB();
 app.locals.desksDB = desksConnection;
 app.locals.usersDB = usersConnection;
 
-// Serve static files from React build
-app.use(express.static(path.join(__dirname, 'public')));
+// App routes FIRST - before static files
+app.use('/api', router);
 
-// App routes
-app.use('/', router);
+// Serve static files from React build AFTER API routes
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Handle React routing - return index.html for all non-API routes
 app.use((req, res) => {
