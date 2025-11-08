@@ -5,7 +5,7 @@ import '../index.css';
 
 function Login() {
   const [email, setEmail] = useState('test@example.com');
-  const [password, setPassword] = useState('password123');
+  const [password, setPassword] = useState('Hackathon@1234');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();

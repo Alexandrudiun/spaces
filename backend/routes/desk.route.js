@@ -31,7 +31,7 @@ router.get("/", authenticate, (req, res) => {
 // });
 
 // Create desk
-router.post("/", authenticate, /*authorize('manager', 'admin'), */ createDesk);
+router.post("/", authenticate, authorize('manager', 'admin'),  createDesk);
 
 // Get all desks
 router.get("/all", authenticate, getAllDesks);
