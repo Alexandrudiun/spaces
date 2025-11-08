@@ -8,6 +8,7 @@ import {
     handleReservationRequest,
     checkBookingAvailability,
     createDesk,
+    bookDesk,
 } from '../crud/desk.crud.js';
 
 
@@ -34,6 +35,9 @@ router.post("/:id/reservation", authenticate, authorize('manager', 'admin'), han
 
 // Check booking availability
 router.get("/:id/availability", authenticate, checkBookingAvailability);
+
+// Book a desk
+router.post("/book/:id", authenticate, authorize('user', 'manager', 'admin'), bookDesk);
 
 export default router;
 
