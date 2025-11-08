@@ -7,7 +7,7 @@ import {
     deleteDesk,
     handleReservationRequest,
     checkBookingAvailability
-} from '../controllers/desk.crud.js';
+} from '../crud/desk.crud.js';
 
 
 const router = express.Router();
