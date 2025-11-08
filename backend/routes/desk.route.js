@@ -3,7 +3,7 @@ import { authenticate, authorize } from '../middleware/auth.middleware.js';
 import { 
     getAllDesks, 
     getDeskById, 
-    updateDesk, 
+    updateBookingFromDesk, 
     deleteDesk,
     handleReservationRequest,
     checkBookingAvailability,
@@ -25,7 +25,7 @@ router.get("/all", authenticate, getAllDesks);
 router.get("/:id", authenticate, getDeskById);
 
 // Update a desk by ID
-router.put("/:id", authenticate, authorize('manager', 'admin'), updateDesk);
+router.put("/:id", authenticate, authorize('manager', 'admin'), updateBookingFromDesk);
 
 // Delete a desk by ID
 router.delete("/:id", authenticate, authorize('manager', 'admin'), deleteDesk);

@@ -31,17 +31,72 @@ export const getDeskById = async (req, res) => {
         res.status(500).json({ status: 500, message: 'Error retrieving desk', error: error.message });
     }
 };
-
-export const updateDesk = async (req, res) => {
-    const Desk = createDeskModel(req.app.locals.desksDB);
+export const updateBookingFromDesk = async (req, res) => {
     try {
-        const desk = await Desk.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        if (!desk) return res.status(404).json({ status: 404, message: 'Desk not found' });
-        res.status(200).json({ status: 200, message: 'Desk updated successfully', data: desk });
+        const Desk = createDeskModel(req.app.locals.desksDB);
+        const { id } = req.params; // Desk ID
+        const { bookingId, status } = req.body;
+
+        // Validate status according to your schema
+        const validStatuses = ['pending', 'accepted', 'declined', 'cancelled'];
+        if (!status || !validStatuses.includes(status)) {
+            return res.status(400).json({ 
+                error: 'Invalid status. Must be one of: pending, accepted, declined, cancelled' 
+            });
+        }
+
+        // Find the desk and update the specific booking status
+        const updatedDesk = await Desk.findOneAndUpdate(
+            {
+                _id: id,
+                'bookings._id': bookingId
+            },
+            {
+                $set: {
+                    'bookings.$.status': status,
+                    'bookings.$.updatedAt': new Date() // Update the booking's updatedAt timestamp
+                }
+            },
+            { 
+                new: true, // Return the updated document
+                runValidators: true // Ensure enum validation runs
+            }
+        ).populate('bookings.attendees', 'name email'); // Optional: populate attendee details
+
+        if (!updatedDesk) {
+            return res.status(404).json({ 
+                error: 'Desk or booking not found' 
+            });
+        }
+
+        // Find the updated booking in the array
+        const updatedBooking = updatedDesk.bookings.id(bookingId);
+
+        res.status(200).json({
+            message: 'Booking status updated successfully',
+            booking: updatedBooking,
+            desk: updatedDesk
+        });
+
     } catch (error) {
-        res.status(500).json({ status: 500, message: 'Error updating desk', error: error.message });
+        console.error('Error updating booking status:', error);
+        
+        // Handle validation errors
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ 
+                error: 'Validation error',
+                details: error.message 
+            });
+        }
+        
+        res.status(500).json({ 
+            error: 'Failed to update booking status',
+            details: error.message 
+        });
     }
 };
+
+
 
 export const deleteDesk = async (req, res) => {
     const Desk = createDeskModel(req.app.locals.desksDB);
