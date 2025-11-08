@@ -33,7 +33,7 @@ app.use(express.static(path.join(__dirname, 'public/dist')));
 
 // Handle React routing - return index.html for all non-API routes
 app.use((req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    res.sendFile(path.join(__dirname, 'public/dist', 'index.html'));
 });
 
 // Start Server
