@@ -1,10 +1,10 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import router from './routes/router.js';
+import { initDB } from './db/initDB.js';
 
 dotenv.config();
 
@@ -19,35 +19,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB Connections
-const desksConnection = mongoose.createConnection(process.env.MONGO_molson_desks);
-const usersConnection = mongoose.createConnection(process.env.MONGO_molson_user);
-
-// Connection event listeners
-desksConnection.on('connected', () => {
-    console.log('MongoDB connected successfully to molson_desks');
-});
-
-desksConnection.on('error', (err) => {
-    console.error('MongoDB molson_desks connection error:', err);
-});
-
-usersConnection.on('connected', () => {
-    console.log('MongoDB connected successfully to molson_users');
-});
-
-usersConnection.on('error', (err) => {
-    console.error('MongoDB molson_users connection error:', err);
-});
-
-// Export connections for use in models
+// Initialize DB connections
+const { desksConnection, usersConnection } = initDB();
 app.locals.desksDB = desksConnection;
 app.locals.usersDB = usersConnection;
-
-// API Routes (add your API routes here before the static files)
-app.get('/api/health', (req, res) => {
-    res.json({ message: 'Server is running' });
-});
 
 // Serve static files from React build
 app.use(express.static(path.join(__dirname, 'public')));
