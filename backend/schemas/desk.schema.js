@@ -4,17 +4,15 @@ import mongoose from "mongoose";
 const deskSchema = new mongoose.Schema({
   locationId: { 
     type: String, 
-    required: true,
-    index: true // Add index for faster queries
   },
   bookings: [{
     start: { 
       type: Date, 
-      required: true 
+     
     },
     end: { 
       type: Date, 
-      required: true 
+      
     },
     status: { 
       type: String, 
@@ -26,15 +24,7 @@ const deskSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId, 
       ref: 'User',
       //required: true // Ensure at least one attendee
-    }],
-    createdAt: {
-      type: Date,
-      default: Date.now // Track when booking was created
-    },
-    updatedAt: {
-      type: Date,
-      default: Date.now // Track when booking was last modified
-    }
+    }]
   }],
 }, {
   timestamps: true // Automatically manage createdAt and updatedAt for desk document

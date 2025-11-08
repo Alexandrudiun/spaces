@@ -24,7 +24,7 @@ router.get("/all", authenticate, getAllDesks);
 // Get a specific desk by ID
 router.get("/:id", authenticate, getDeskById);
 
-// Update a desk by ID
+// Update a booking by ID
 router.put("/:id", authenticate, authorize('manager', 'admin'), updateBookingFromDesk);
 
 // Delete a desk by ID
