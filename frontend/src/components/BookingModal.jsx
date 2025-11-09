@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 
-const BookingModal = ({ section, currentTime, onClose, onConfirm, deskId, deskStatus = 'available', isLiveMode = true }) => {
+const BookingModal = ({ section, currentTime, onClose, onConfirm, deskId, deskStatus = 'available', isLiveMode = true, deskLocation = 'N/A', deskName = 'N/A', isOccupied = false }) => {
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.innerWidth < 768);
+  const [bookings, setBookings] = useState([]);
+  const [loadingBookings, setLoadingBookings] = useState(true);
   const [bookingData, setBookingData] = useState({
     section: section,
     deskId: deskId,
@@ -18,6 +20,76 @@ const BookingModal = ({ section, currentTime, onClose, onConfirm, deskId, deskSt
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Fetch bookings for this specific desk
+  useEffect(() => {
+    if (!deskId) return;
+    
+    const fetchDeskBookings = async () => {
+      try {
+        setLoadingBookings(true);
+        const token = localStorage.getItem('token');
+        
+        const response = await fetch('https://molsongbsspaces.onrender.com/api/desk/all', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch desk bookings');
+        }
+
+        const data = await response.json();
+        const desks = data.data || data || [];
+        
+        // Find the specific desk using multiple matching strategies
+        const desk = desks.find(d => {
+          // Try exact match first
+          if (d.name === deskId || d.id === deskId || d._id === deskId) return true;
+          
+          // Try locationId match
+          if (d.locationId === deskId || d.locationId === deskLocation || d.locationId === deskName) return true;
+          
+          // Try matching "Table X UP/DOWN" format to locationId
+          if (d.locationId) {
+            const match = deskId.match(/Table (\d+) (UP|DOWN)/);
+            if (match) {
+              const tableNum = match[1];
+              const locationMatch = d.locationId.toLowerCase().includes(`table${tableNum}`.toLowerCase());
+              if (locationMatch) return true;
+            }
+          }
+          
+          return false;
+        });
+        
+        console.log('📊 Found desk for bookings:', desk);
+        console.log('🔍 Search parameters:', { deskId, deskLocation, deskName });
+        
+        if (desk && desk.bookings) {
+          // Sort bookings by start date (newest first)
+          const sortedBookings = desk.bookings
+            .filter(booking => booking.status !== 'declined')
+            .sort((a, b) => new Date(b.start) - new Date(a.start));
+          console.log('📅 Found bookings:', sortedBookings);
+          setBookings(sortedBookings);
+        } else {
+          console.log('⚠️ No desk found or no bookings available');
+          setBookings([]);
+        }
+      } catch (error) {
+        console.error('Error fetching desk bookings:', error);
+        setBookings([]);
+      } finally {
+        setLoadingBookings(false);
+      }
+    };
+
+    fetchDeskBookings();
+  }, [deskId, deskLocation, deskName]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -135,6 +207,202 @@ const BookingModal = ({ section, currentTime, onClose, onConfirm, deskId, deskSt
             >
               ×
             </button>
+          </div>
+
+          {/* Desk Information Card */}
+          <div style={{
+            padding: isMobile ? '12px 14px' : '16px 18px',
+            borderRadius: '12px',
+            marginBottom: '16px',
+            background: 'linear-gradient(135deg, #f0f9ff, #e0f2fe)',
+            border: '1px solid rgba(2, 132, 199, 0.2)',
+            boxShadow: '0 4px 12px rgba(2, 132, 199, 0.08)'
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '10px' : '16px' }}>
+              {/* Location Info */}
+              <div>
+                <div style={{
+                  fontSize: isMobile ? '11px' : '12px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  fontWeight: '600',
+                  color: '#0284c7',
+                  marginBottom: '4px'
+                }}>
+                  📍 Location
+                </div>
+                <div style={{
+                  fontSize: isMobile ? '13px' : '15px',
+                  fontWeight: '600',
+                  color: '#0f172a'
+                }}>
+                  {deskLocation}
+                </div>
+              </div>
+
+              {/* Desk Name/Reference */}
+              <div>
+                <div style={{
+                  fontSize: isMobile ? '11px' : '12px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  fontWeight: '600',
+                  color: '#0284c7',
+                  marginBottom: '4px'
+                }}>
+                  🏷️ Desk Reference
+                </div>
+                <div style={{
+                  fontSize: isMobile ? '13px' : '15px',
+                  fontWeight: '600',
+                  color: '#0f172a',
+                  fontFamily: 'monospace'
+                }}>
+                  {deskName}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Existing Bookings Section */}
+          <div style={{
+            padding: isMobile ? '12px 14px' : '14px 16px',
+            borderRadius: '12px',
+            marginBottom: '16px',
+            background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            boxShadow: '0 4px 12px rgba(245, 158, 11, 0.1)'
+          }}>
+            <div style={{
+              fontSize: isMobile ? '12px' : '13px',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              fontWeight: '700',
+              color: '#92400e',
+              marginBottom: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              📅 Booking Schedule {!loadingBookings && `(${bookings.length})`}
+            </div>
+            
+            {loadingBookings ? (
+              <div style={{ 
+                fontSize: isMobile ? '12px' : '13px', 
+                color: '#78716c', 
+                textAlign: 'center',
+                padding: '8px 0'
+              }}>
+                Loading bookings...
+              </div>
+            ) : bookings.length === 0 ? (
+              <div style={{
+                padding: isMobile ? '12px 10px' : '14px 12px',
+                background: 'rgba(255, 255, 255, 0.7)',
+                borderRadius: '8px',
+                border: '1px solid rgba(120, 113, 108, 0.2)',
+                textAlign: 'center',
+                fontSize: isMobile ? '12px' : '13px',
+                color: '#78716c'
+              }}>
+                ✨ No bookings yet - This desk is completely free!
+              </div>
+            ) : (
+              <div style={{
+                maxHeight: '150px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                {bookings.slice(0, 5).map((booking, index) => {
+                    const startDate = new Date(booking.start);
+                    const endDate = new Date(booking.end);
+                    const isCurrentlyActive = new Date() >= startDate && new Date() <= endDate;
+                    
+                    return (
+                      <div 
+                        key={booking._id || index}
+                        style={{
+                          padding: isMobile ? '8px 10px' : '10px 12px',
+                          background: isCurrentlyActive ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.7)',
+                          borderRadius: '8px',
+                          border: isCurrentlyActive ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(120, 113, 108, 0.2)',
+                          fontSize: isMobile ? '11px' : '12px'
+                        }}
+                      >
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center',
+                          marginBottom: '4px'
+                        }}>
+                          <span style={{ 
+                            fontWeight: '700', 
+                            color: isCurrentlyActive ? '#991b1b' : '#0f172a',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}>
+                            {isCurrentlyActive && '🔴 '}
+                            {booking.status === 'accepted' ? '✅' : booking.status === 'pending' ? '⏳' : '❌'} 
+                            {booking.status.toUpperCase()}
+                          </span>
+                          {booking.requester?.name && (
+                            <span style={{ 
+                              fontSize: isMobile ? '10px' : '11px', 
+                              color: '#64748b',
+                              fontWeight: '500'
+                            }}>
+                              {booking.requester.name}
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ color: '#57534e', fontWeight: '500' }}>
+                          📆 {startDate.toLocaleDateString([], { 
+                            month: 'short', 
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </div>
+                        <div style={{ color: '#78716c', marginTop: '2px' }}>
+                          ⏰ {startDate.toLocaleTimeString([], { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })} - {endDate.toLocaleTimeString([], { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </div>
+                        {isCurrentlyActive && (
+                          <div style={{
+                            marginTop: '4px',
+                            fontSize: isMobile ? '10px' : '11px',
+                            color: '#991b1b',
+                            fontWeight: '600'
+                          }}>
+                            🔴 Currently Active
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {bookings.length > 5 && (
+                    <div style={{
+                      padding: isMobile ? '6px 8px' : '8px 10px',
+                      background: 'rgba(146, 64, 14, 0.1)',
+                      borderRadius: '6px',
+                      textAlign: 'center',
+                      fontSize: isMobile ? '10px' : '11px',
+                      color: '#92400e',
+                      fontWeight: '600'
+                    }}>
+                      + {bookings.length - 5} more booking{bookings.length - 5 > 1 ? 's' : ''}
+                    </div>
+                  )}
+                </div>
+              )}
           </div>
 
           {/* Availability Status */}

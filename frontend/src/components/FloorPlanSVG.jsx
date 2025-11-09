@@ -3187,19 +3187,50 @@ const FloorPlanSVG = () => {
       </div>
 
       {/* Booking Modal */}
-      {selectedSection && (
-        <Suspense>
-          <BookingModal
-            section={selectedSection}
-            deskId={selectedSection}
-            deskStatus={selectedDeskStatus ?? 'available'}
-            currentTime={referenceTime}
-            isLiveMode={isLiveMode}
-            onClose={handleCloseModal}
-            onConfirm={handleBookingConfirm}
-          />
-        </Suspense>
-      )}
+      {selectedSection && (() => {
+        // Extract desk information for the modal
+        const desk = desks.find(d => {
+          // Try exact match first
+          if (d.name === selectedSection || d.id === selectedSection || d._id === selectedSection) return true;
+          
+          // Try locationId match
+          if (d.locationId) {
+            // Extract table number from our format: "Table 2 UP" -> 2
+            const match = selectedSection.match(/Table (\d+) (UP|DOWN)/);
+            if (match) {
+              const tableNum = match[1];
+              
+              // Backend format: "A_Table2_M2" or similar
+              const locationMatch = d.locationId.toLowerCase().includes(`table${tableNum}`.toLowerCase());
+              
+              if (locationMatch) return true;
+            }
+          }
+          
+          return false;
+        });
+
+        const deskLocation = desk?.locationId || selectedSection || 'N/A';
+        const deskName = desk?.name || selectedSection || 'N/A';
+        const isOccupied = desk?.isOccupied || false;
+
+        return (
+          <Suspense>
+            <BookingModal
+              section={selectedSection}
+              deskId={selectedSection}
+              deskStatus={selectedDeskStatus ?? 'available'}
+              deskLocation={deskLocation}
+              deskName={deskName}
+              isOccupied={isOccupied}
+              currentTime={referenceTime}
+              isLiveMode={isLiveMode}
+              onClose={handleCloseModal}
+              onConfirm={handleBookingConfirm}
+            />
+          </Suspense>
+        );
+      })()}
     </>
   );
 };
