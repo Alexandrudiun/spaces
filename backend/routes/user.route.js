@@ -7,7 +7,8 @@ import {
     updateUser,
     deleteUser,
     updateUserImage,
-    getDesksWhereUserIsAttendee
+    getDesksWhereUserIsAttendee,
+    getAllPositionsOfUser
 } from '../crud/user.crud.js';
 const router = express.Router();
 
@@ -31,6 +32,9 @@ router.put('/:id/:image', authenticate, updateUserImage);
 
 // Delete user - admin only
 router.delete('/:id', authenticate, authorize('admin'), deleteUser);
+
+// Get all locations of user
+router.post('/positions', authenticate, authorize('user', 'manager', 'admin'), getAllPositionsOfUser);
 
 
 export default router;
