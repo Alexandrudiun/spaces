@@ -46,3 +46,4 @@ admin role:
 - email: test@example.com
 - password: Hackathon@1234
 
+The website can be found at https://molsongbsspaces.onrender.com/
