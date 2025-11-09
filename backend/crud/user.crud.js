@@ -150,6 +150,35 @@ export const updateUserImage = async (req, res) => {
     }
 };
 
+export const updateUserRole = async (req, res) => {
+    const User = createUserModel(req.app.locals.usersDB);
+    try {
+        const user = await User.findByIdAndUpdate(
+            req.params.id,
+            { role: req.body.role },
+            { new: true, runValidators: true }
+        ).select('-password');
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: user
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error updating user role',
+            error: error.message
+        });
+    }
+};
+
 export const getDesksWhereUserIsAttendee = async (req, res) => {
     const Desk = createDeskModel(req.app.locals.desksDB);
     try {

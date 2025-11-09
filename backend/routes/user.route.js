@@ -8,7 +8,8 @@ import {
     deleteUser,
     updateUserImage,
     getDesksWhereUserIsAttendee,
-    getAllPositionsOfUser
+    getAllPositionsOfUser,
+    updateUserRole
 } from '../crud/user.crud.js';
 const router = express.Router();
 
@@ -26,6 +27,9 @@ router.post('/', authenticate, authorize('admin'), createUser);
 
 // Update user - admin or the user themselves
 router.put('/:id', authenticate, updateUser);
+
+// Update user role
+router.put('/role/:id', authenticate, authorize('admin'), updateUserRole);
 
 // Update user image - admin or the user themselves
 router.put('/:id/:image', authenticate, updateUserImage);
