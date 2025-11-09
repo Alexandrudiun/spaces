@@ -147,7 +147,7 @@ export const checkBookingAvailability = async (req, res) => {
     }
 };
 
-export const bookDesk = async (req, res) => { const Desk = createDeskModel(req.app.locals.desksDB); const deskId = req.params.id; const { start, end, attendees } = req.body; try { const desk = await Desk.findById(deskId); if (!desk) return res.status(404).json({ status: 404, message: 'Desk not found' }); const startDate = new Date(start); const endDate = new Date(end); if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || startDate >= endDate) { return res.status(400).json({ status: 400, message: 'Invalid start or end time' }); } // Check for overlap with any accepted booking const s = startDate.getTime(); const e = endDate.getTime(); const hasOverlap = (desk.bookings || []).some(b => { if (b.status !== 'accepted') return false; const bStart = new Date(b.start).getTime(); const bEnd = new Date(b.end).getTime(); return !(bEnd <= s || bStart >= e); }); if (hasOverlap) { return res.status(409).json({ status: 409, message: 'Desk already booked for the requested time range' }); } // Define auto-accept locations and restricted locations const autoAcceptLocations = [ 'BubbleRoom1', 'BubbleRoom2', 'BubbleRoom3', 'BubbleRoom4', 'BubbleRoom5', 'BubbleRoom6', 'Cubicle1', 'Cubicle2', 'Cubicle3', 'Cubicle4' ]; const restrictedLocations = [ 'ManagementOffice1', 'ManagementOffice2', 'ManagementOffice3', 'TrainingOffice1', 'TrainingOffice2' ]; // Get user role (assuming it's available in req.user from auth middleware) const userRole = req.user?.role; // Adjust this based on your auth structure // Check if location is restricted and user doesn't have permission if (restrictedLocations.includes(desk.locationId)) { if (!userRole || (userRole !== 'admin' && userRole !== 'manager')) { return res.status(403).json({ status: 403, message: 'Only admins and managers can book this location' }); } } // Determine booking status based on location let bookingStatus = 'pending'; if (autoAcceptLocations.includes(desk.locationId)) { bookingStatus = 'accepted'; } // Build new booking (query users for attendee IDs using a single DB query) let userAttendees = []; if (Array.isArray(attendees) && attendees.length > 0) { const User = createUserModel(req.app.locals.usersDB); userAttendees = await User.find({ _id: { $in: attendees } }); } const newBooking = { start: startDate, end: endDate, status: bookingStatus, attendees: userAttendees, }; // Ensure arrays exist desk.bookings = desk.bookings || []; desk.bookings.push(newBooking); await desk.save(); res.status(201).json({ status: 201, message: bookingStatus === 'accepted' ? 'Booking created and automatically accepted' : 'Booking created successfully', data: newBooking }); } catch (error) { res.status(500).json({ status: 500, message: 'Error creating booking', error: error.message }); } };
+export const bookDesk = async (req, res) => {
     const Desk = createDeskModel(req.app.locals.desksDB);
     const deskId = req.params.id;
     const { start, end, attendees } = req.body;
@@ -236,6 +236,6 @@ export const bookDesk = async (req, res) => { const Desk = createDeskModel(req.a
             data: newBooking
         });
     } catch (error) {
-        res.status(500).json({ status: 500, message: 'Error creating booking', error: error.message });
-    }
-};
+            res.status(500).json({ status: 500, message: 'Error creating booking', error: error.message });
+        }
+    };
