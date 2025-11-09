@@ -1,26 +1,47 @@
-# React Template
+# Molsongbsspaces
 
-## Informations
-- This repository contains a basic react app using TypeScript
-- It has been created using `npm create vite@latest`
+## Setup Instructions
 
-## How to run
+To run the project you need node >= 22.
 
-0. You should check that you have the latest releases on npm and node; this can be done using:
-    - `sudo n stable`
-    - `sudo npm install -g npm@latest`
-1. `cd frontend`
-2. `npm install`
-3. `npm run dev`
+### Frontend
 
-## Docker <3
+If we want to run the project frontend locally starting from the project root run the 
+following commands:
 
-Since installing dependencies is sometimes the worst thing to do, we prepared for you a docker
-container too, which actually lets you do the same work, but without always needing to `npm install`
+```bash
+$ cd frontend
+$ npm i
+$ npm run dev
+```
 
-The way to use it is simple:
-1. Install docker
-2. `sudo docker-compose up`
-3. Continue to code
+### Backend
+
+To run the backend the following environment variables need to be set up:
+- ``PORT``
+- ``MONGO_molson_desks``
+- ``MONGO_molson_user``
+- ``appName``
+- ``JWT_SECRET``
+- ``JWT_EXPIRES_IN``
+
+If we want to run the project backend locally, starting from the project root we run
+the following commands:
+
+```bash
+$ cd backend
+$ npm i
+$ npm run dev
+```
+
+## Tech Stack
+
+The project was made with the MERN Stack. The frontend was made with React 
+while the backend was made using ExpressJS and NextJS. The database of the 
+project is MongoDB (noSQL database).
+
+## Demo Credentials
+
+The database starts with the following
 
 
