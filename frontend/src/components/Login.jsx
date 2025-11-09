@@ -11,10 +11,18 @@ function Login() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const [jsConfetti, setJsConfetti] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     // Initialize confetti instance
     setJsConfetti(new JSConfetti());
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handleSubmit = async (e) => {
@@ -73,8 +81,22 @@ function Login() {
     }
   };
 
+  const containerStyle = {
+    position: 'relative',
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    background: 'linear-gradient(to bottom right, #0067AC, #002147)',
+    padding: isMobile ? '2.5rem 1.25rem' : '4rem 2rem'
+  };
+
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-molson-blue to-coors-blue" style={{ position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', background: 'linear-gradient(to bottom right, #0067AC, #002147)' }}>
+    <div
+      className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-molson-blue to-coors-blue"
+      style={containerStyle}
+    >
       {/* Background Image with Overlay */}
       <div 
         className="absolute inset-0 bg-cover bg-center opacity-20"
@@ -102,8 +124,20 @@ function Login() {
       }} />
 
       {/* Main Content */}
-      <div className="relative z-10 w-full max-w-6xl mx-auto px-4 py-8">
-        <div className="grid md:grid-cols-2 gap-8 items-center">
+      <div
+        className="relative z-10 w-full max-w-6xl mx-auto px-4 py-8"
+        style={{
+          width: '100%',
+          maxWidth: isMobile ? '720px' : '1100px',
+          padding: isMobile ? '0 0 3rem' : '2rem 1rem'
+        }}
+      >
+        <div
+          className="grid md:grid-cols-2 gap-8 items-center"
+          style={{
+            gap: isMobile ? '2.25rem' : '3.5rem'
+          }}
+        >
           
           {/* Left Side - Branding & Welcome */}
           <motion.div
@@ -111,6 +145,9 @@ function Login() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
             className="text-white space-y-6"
+            style={{
+              textAlign: isMobile ? 'center' : 'left'
+            }}
           >
             {/* Logo/Bottles Image */}
             <motion.div
@@ -118,6 +155,9 @@ function Login() {
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.2 }}
               className="mb-8"
+              style={{
+                display: isMobile ? 'none' : 'block'
+              }}
             >
               <img 
                 src="/molson-bottles.png" 
@@ -135,6 +175,10 @@ function Login() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
               className="text-5xl md:text-6xl font-bold leading-tight"
+              style={{
+                fontSize: isMobile ? 'clamp(2.5rem, 8vw, 3.75rem)' : '3.75rem',
+                lineHeight: isMobile ? 1.1 : 1.2
+              }}
             >
               Welcome to
               <span className="block text-molson-yellow mt-2">
@@ -156,6 +200,7 @@ function Login() {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.6, delay: 0.8 }}
               className="flex gap-4 pt-4"
+              style={{ justifyContent: 'center' }}
             >
               <div className="h-1 w-16 bg-molson-yellow rounded-full" />
               <div className="h-1 w-16 bg-molson-red rounded-full" />
@@ -169,14 +214,21 @@ function Login() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.3 }}
             className="w-full"
+            style={{
+              maxWidth: isMobile ? '100%' : '480px',
+              margin: isMobile ? '0 auto' : '0'
+            }}
           >
-            <div className="bg-white/95 backdrop-blur-lg rounded-3xl shadow-2xl p-8 md:p-12" style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(16px)',
-              borderRadius: '1.5rem',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              padding: '3rem'
-            }}>
+            <div
+              className="bg-white/95 backdrop-blur-lg rounded-3xl shadow-2xl p-8 md:p-12"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                backdropFilter: 'blur(16px)',
+                borderRadius: '1.5rem',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                padding: isMobile ? 'clamp(1.75rem, 6vw, 2.25rem)' : '3rem'
+              }}
+            >
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -190,7 +242,15 @@ function Login() {
                 </p>
               </motion.div>
 
-              <form onSubmit={handleSubmit} className="space-y-6" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <form
+                onSubmit={handleSubmit}
+                className="space-y-6"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: isMobile ? '1.25rem' : '1.5rem'
+                }}
+              >
                 {error && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
@@ -231,8 +291,9 @@ function Login() {
                       borderRadius: '0.75rem',
                       border: '2px solid #e5e7eb',
                       outline: 'none',
-                      transition: 'border-color 0.3s',
-                      fontSize: '1rem'
+                      transition: 'border-color 0.3s, box-shadow 0.3s',
+                      fontSize: '1rem',
+                      boxShadow: isMobile ? '0 1px 2px rgba(15, 23, 42, 0.05)' : 'none'
                     }}
                     onFocus={(e) => e.target.style.borderColor = '#0067AC'}
                     onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
@@ -264,8 +325,9 @@ function Login() {
                       borderRadius: '0.75rem',
                       border: '2px solid #e5e7eb',
                       outline: 'none',
-                      transition: 'border-color 0.3s',
-                      fontSize: '1rem'
+                      transition: 'border-color 0.3s, box-shadow 0.3s',
+                      fontSize: '1rem',
+                      boxShadow: isMobile ? '0 1px 2px rgba(15, 23, 42, 0.05)' : 'none'
                     }}
                     onFocus={(e) => e.target.style.borderColor = '#0067AC'}
                     onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
@@ -282,19 +344,19 @@ function Login() {
                   whileTap={{ scale: loading ? 1 : 0.98 }}
                   type="submit"
                   disabled={loading}
-                  style={{
-                    width: '100%',
-                    background: loading ? '#6b7280' : 'linear-gradient(to right, #0067AC, #002147)',
-                    color: 'white',
-                    fontWeight: 'bold',
-                    padding: '1rem',
-                    borderRadius: '0.75rem',
-                    border: 'none',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                    transition: 'box-shadow 0.3s',
-                    opacity: loading ? 0.7 : 1
-                  }}
+                    style={{
+                      width: '100%',
+                      background: loading ? '#6b7280' : 'linear-gradient(to right, #0067AC, #002147)',
+                      color: 'white',
+                      fontWeight: 'bold',
+                      padding: isMobile ? '0.9rem' : '1rem',
+                      borderRadius: '0.75rem',
+                      border: 'none',
+                      cursor: loading ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                      transition: 'box-shadow 0.3s',
+                      opacity: loading ? 0.7 : 1
+                    }}
                   onMouseEnter={(e) => !loading && (e.target.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1)')}
                   onMouseLeave={(e) => e.target.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}
                 >

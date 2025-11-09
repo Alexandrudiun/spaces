@@ -3,6 +3,37 @@ import BookingModal from "./BookingModal";
 import { table } from "framer-motion/client";
 
 const FloorPlanSVG = () => {
+  const formatDateInputValue = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  };
+
+  const formatTimeInputValue = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '00:00';
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  const buildDateTimeFromInput = (dateStr, timeStr) => {
+    if (!dateStr || !timeStr) return new Date();
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const [hour, minute] = timeStr.split(':').map(Number);
+
+    if ([year, month, day, hour, minute].some((value) => Number.isNaN(value))) {
+      return new Date();
+    }
+
+    return new Date(year, month - 1, day, hour, minute, 0, 0);
+  };
+
+  const formatDisplayTimestamp = (date) => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return 'Invalid date';
+    return date.toLocaleString([], { hour12: false, year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const defaultsNow = new Date();
+  const defaultDate = formatDateInputValue(defaultsNow);
+  const defaultTime = formatTimeInputValue(defaultsNow);
+
   const [hoveredSection, setHoveredSection] = useState(null);
   const [selectedSection, setSelectedSection] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -10,6 +41,10 @@ const FloorPlanSVG = () => {
   const [desks, setDesks] = useState([]); // Store all desk data
   const [loadingDesks, setLoadingDesks] = useState(true);
   const [currentUser, setCurrentUser] = useState(null); // Store current user data
+  const [viewMode, setViewMode] = useState('live'); // 'live' | 'search'
+  const [searchDate, setSearchDate] = useState(defaultDate);
+  const [searchTime, setSearchTime] = useState(defaultTime);
+  const [searchTimestamp, setSearchTimestamp] = useState(() => buildDateTimeFromInput(defaultDate, defaultTime));
 
   // Update current time every second for real-time updates
   useEffect(() => {
@@ -63,6 +98,16 @@ const FloorPlanSVG = () => {
 
     fetchUserData();
   }, []);
+
+  // Keep derived search timestamp in sync with selected date/time
+  useEffect(() => {
+    if (viewMode === 'search') {
+      setSearchTimestamp(buildDateTimeFromInput(searchDate, searchTime));
+    }
+  }, [viewMode, searchDate, searchTime]);
+
+  const isLiveMode = viewMode === 'live';
+  const referenceTime = isLiveMode ? currentTime : searchTimestamp;
 
   // Fetch all desks from backend API
   useEffect(() => {
@@ -123,86 +168,6 @@ const FloorPlanSVG = () => {
 
   // Define sections with their boundaries and colors
   const sections = {
-    "Bookster Area": {
-      color: "#10b981",
-      hoverColor: "#059669",
-    },
-    "Bubble Rooms": {
-      color: "#8b5cf6",
-      hoverColor: "#7c3aed",
-    },
-    // individual Bubble rooms - give each a distinct color
-    "Bubble Room1": {
-      color: "#60a5fa", // blue
-      hoverColor: "#2563eb",
-    },
-    "Bubble Room2": {
-      color: "#34d399", // green
-      hoverColor: "#059669",
-    },
-    "Bubble Room3": {
-      color: "#f97316", // orange
-      hoverColor: "#ea580c",
-    },
-    "Bubble Room4": {
-      color: "#f472b6", // pink
-      hoverColor: "#db2777",
-    },
-    // additional Bubble rooms
-    "Bubble Room5": {
-      color: "#a78bfa", // purple
-      hoverColor: "#7c3aed",
-    },
-    "Bubble Room6": {
-      color: "#fb7185", // rose
-      hoverColor: "#f43f5e",
-    },
-    // Cubicles
-    "Cubicle 1": {
-      color: "#fbbf24",
-      hoverColor: "#f59e0b",
-    },
-    "Cubicle 2": {
-      color: "#38bdf8",
-      hoverColor: "#0ea5e9",
-    },
-    "Cubicle 3": {
-      color: "#fca5a5",
-      hoverColor: "#f87171",
-    },
-    "Cubicle 4": {
-      color: "#c084fc",
-      hoverColor: "#a78bfa",
-    },
-    ManagementOffice3: {
-      color: "#f59e0b",
-      hoverColor: "#d97706",
-    },
-    ManagementOffice2: {
-      color: "#ec4899",
-      hoverColor: "#db2777",
-    },
-    ManagementOffice1: {
-      color: "#06b6d4",
-      hoverColor: "#0891b2",
-    },
-    "Work Tables UP": {
-      color: "#f97316",
-      hoverColor: "#ea580c",
-    },
-    "Work Tables Down": {
-      color: "#84cc16",
-      hoverColor: "#65a30d",
-    },
-    "beer point": {
-      color: "#eab308",
-      hoverColor: "#ca8a04",
-    },
-    // alias with title case so code that uses "Beer Point" matches
-    "Beer Point": {
-      color: "#eab308",
-      hoverColor: "#ca8a04",
-    },
   };
 
   // UP Tables (Cannot be automated because offsets aren't consistent :( )
@@ -502,8 +467,8 @@ const FloorPlanSVG = () => {
 
     console.log(`🔍 Checking availability for ${deskId}:`, desk);
 
-    const now = new Date();
-    console.log(`⏰ Current time: ${now.toISOString()} (${now.getTime()})`);
+  const now = referenceTime instanceof Date ? referenceTime : new Date(referenceTime);
+  console.log(`⏰ Reference time: ${now.toISOString()} (${now.getTime()})`);
     
     // Check attendances (primary - current format from backend)
     if (desk.attendances && desk.attendances.length > 0) {
@@ -572,34 +537,41 @@ const FloorPlanSVG = () => {
     return true; // Available if no active attendance or booking
   };
 
-  // Get booking status for a desk (available, booked, pending)
-  const getDeskStatus = (deskId) => {
+  // Get booking status for a desk (available, booked, pending) at the selected time
+  const getDeskStatus = (deskId, overrideTime) => {
     if (loadingDesks) return 'available';
-    
-    const desk = desks.find(d => {
+
+    const desk = desks.find((d) => {
       if (d.name === deskId || d.id === deskId || d._id === deskId) return true;
       if (d.locationId === deskId) return true;
       return false;
     });
-    
+
     if (!desk) {
-      // Only log for table desks, not sections
       if (deskId.includes('Table')) {
         console.log(`⚠️ Desk not found in backend data: ${deskId}`);
-        console.log(`Available desk IDs:`, desks.map(d => ({id: d.id, locationId: d.locationId, name: d.name})).slice(0, 5));
+        console.log(`Available desk IDs:`, desks.map((d) => ({ id: d.id, locationId: d.locationId, name: d.name })).slice(0, 5));
       }
       return 'available';
     }
 
-    const now = new Date();
-    console.log(`🔍 Checking status for ${deskId} (matched desk: ${desk.locationId || desk.id}) at ${now.toLocaleTimeString()}`);
-    
-    // Check bookings - ANY booking where current time is within the time slot
+    const targetTime = overrideTime instanceof Date
+      ? overrideTime
+      : overrideTime
+      ? new Date(overrideTime)
+      : referenceTime;
+
+    if (!(targetTime instanceof Date) || Number.isNaN(targetTime.getTime())) {
+      console.warn('⚠️ Invalid reference time supplied to getDeskStatus, defaulting to available');
+      return 'available';
+    }
+
+    console.log(`🔍 Checking status for ${deskId} (matched desk: ${desk.locationId || desk.id}) at ${targetTime.toLocaleString()}`);
+
     if (desk.bookings && desk.bookings.length > 0) {
       console.log(`📋 Found ${desk.bookings.length} booking(s) for ${deskId}:`, desk.bookings);
-      
+
       for (const booking of desk.bookings) {
-        // Skip declined bookings - they don't affect availability
         if (booking.status === 'declined') {
           console.log(`  Skipping declined booking`);
           continue;
@@ -607,50 +579,46 @@ const FloorPlanSVG = () => {
 
         const bookingStart = new Date(booking.start);
         const bookingEnd = new Date(booking.end);
-        const isWithinTime = now >= bookingStart && now <= bookingEnd;
-        
+        const isWithinTime = targetTime >= bookingStart && targetTime <= bookingEnd;
+
         console.log(`  Booking: ${bookingStart.toISOString()} - ${bookingEnd.toISOString()}`);
-        console.log(`  Current: ${now.toISOString()}`);
+        console.log(`  Reference: ${targetTime.toISOString()}`);
         console.log(`  Status: ${booking.status}, Within time: ${isWithinTime}`);
-        console.log(`  Comparison: now(${now.getTime()}) >= start(${bookingStart.getTime()}) && now <= end(${bookingEnd.getTime()})`);
-        
-        // Only check bookings in the current timeframe
+        console.log(`  Comparison: ref(${targetTime.getTime()}) >= start(${bookingStart.getTime()}) && ref <= end(${bookingEnd.getTime()})`);
+
         if (isWithinTime) {
-          // Pending booking → desk shows as "pending"
           if (booking.status === 'pending') {
             console.log(`  ⏳ PENDING - Booking awaiting approval`);
             return 'pending';
           }
-          // Accepted booking in current timeframe → desk is "booked" (unavailable)
           if (booking.status === 'accepted') {
-            console.log(`  🔴 BOOKED - Accepted booking is active now`);
+            console.log(`  🔴 BOOKED - Accepted booking is active`);
             return 'booked';
           }
         } else {
-          console.log(`  ⏭️ Booking outside current timeframe - doesn't affect availability`);
+          console.log(`  ⏭️ Booking outside selected timeframe`);
         }
       }
     }
-    
-    // Check attendances (for legacy/active check-ins)
+
     if (desk.attendances && desk.attendances.length > 0) {
       console.log(`📋 Checking ${desk.attendances.length} attendances for ${deskId}`);
-      
+
       for (const attendance of desk.attendances) {
         if (attendance.status === 'completed') continue;
-        
+
         const attendanceStart = new Date(attendance.start);
-        
+
         if (attendance.end) {
           const attendanceEnd = new Date(attendance.end);
-          const isWithinTime = now >= attendanceStart && now <= attendanceEnd;
-          
+          const isWithinTime = targetTime >= attendanceStart && targetTime <= attendanceEnd;
+
           console.log(`  Attendance: ${attendanceStart.toISOString()} - ${attendanceEnd.toISOString()}`);
           console.log(`  Status: ${attendance.status}, Within time: ${isWithinTime}`);
-          
+
           if (isWithinTime) {
             if (attendance.status === 'pending') {
-              console.log(`  ⚠️ PENDING attendance found`);
+              console.log(`  ⏳ PENDING attendance found`);
               return 'pending';
             }
             if (attendance.status === 'active') {
@@ -659,20 +627,19 @@ const FloorPlanSVG = () => {
             }
           }
         } else {
-          // No end time - if start is in the past and status is active
-          if (now >= attendanceStart && attendance.status === 'active') {
+          if (targetTime >= attendanceStart && attendance.status === 'active') {
             console.log(`  🔴 BOOKED (active attendance without end time)`);
             return 'booked';
           }
           if (attendance.status === 'pending') {
-            console.log(`  ⚠️ PENDING attendance (no end time)`);
+            console.log(`  ⏳ PENDING attendance (no end time)`);
             return 'pending';
           }
         }
       }
     }
 
-    console.log(`  ✅ AVAILABLE - No active bookings in current timeframe`);
+    console.log(`  ✅ AVAILABLE - No active bookings in selected timeframe`);
     return 'available';
   };
 
@@ -691,6 +658,8 @@ const FloorPlanSVG = () => {
     }
   };
 
+  const selectedDeskStatus = selectedSection ? getDeskStatus(selectedSection) : null;
+
   // Legacy function for sections (non-table areas)
   const isAvailable = (sectionName) => {
     // For individual tables, use the new desk availability check
@@ -702,8 +671,8 @@ const FloorPlanSVG = () => {
     }
 
     // For other sections, use old logic
-    const currentHour = currentTime.getHours();
-    const currentDate = currentTime.toISOString().split("T")[0];
+  const currentHour = referenceTime.getHours();
+  const currentDate = referenceTime.toISOString().split("T")[0];
 
     const sectionBooking = bookings.find(
       (b) =>
@@ -753,7 +722,7 @@ const FloorPlanSVG = () => {
 
     console.log(`📊 getDeskInfo for ${deskId}:`, desk);
 
-    const now = new Date();
+  const now = referenceTime instanceof Date ? referenceTime : new Date(referenceTime);
     let currentBooking = null;
     let nextBooking = null;
     let currentAttendance = null;
@@ -1025,6 +994,134 @@ const FloorPlanSVG = () => {
   return (
     <>
       <div>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '16px',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '20px',
+            background: 'linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%)',
+            borderRadius: '12px',
+            padding: '18px 20px',
+            border: '1px solid rgba(99, 102, 241, 0.25)',
+            boxShadow: '0 10px 30px rgba(99, 102, 241, 0.12)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              gap: '8px',
+              background: 'rgba(255, 255, 255, 0.7)',
+              padding: '4px',
+              borderRadius: '999px',
+              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.1)',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setViewMode('live')}
+              style={{
+                border: 'none',
+                outline: 'none',
+                cursor: 'pointer',
+                padding: '10px 18px',
+                borderRadius: '999px',
+                fontWeight: 600,
+                fontSize: '14px',
+                color: isLiveMode ? '#0f172a' : '#475569',
+                background: isLiveMode ? 'linear-gradient(135deg, #a5b4fc, #6366f1)' : 'transparent',
+                boxShadow: isLiveMode ? '0 8px 18px rgba(99, 102, 241, 0.35)' : 'none',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              Live Mode
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('search')}
+              style={{
+                border: 'none',
+                outline: 'none',
+                cursor: 'pointer',
+                padding: '10px 18px',
+                borderRadius: '999px',
+                fontWeight: 600,
+                fontSize: '14px',
+                color: !isLiveMode ? '#0f172a' : '#475569',
+                background: !isLiveMode ? 'linear-gradient(135deg, #fde68a, #f59e0b)' : 'transparent',
+                boxShadow: !isLiveMode ? '0 8px 18px rgba(245, 158, 11, 0.35)' : 'none',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              Search Mode
+            </button>
+          </div>
+
+          {viewMode === 'search' && (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '16px',
+                alignItems: 'center',
+              }}
+            >
+              <label style={{ display: 'flex', flexDirection: 'column', fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
+                Date
+                <input
+                  type="date"
+                  value={searchDate}
+                  onChange={(e) => setSearchDate(e.target.value)}
+                  style={{
+                    marginTop: '4px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5f5',
+                    background: '#fff',
+                    fontSize: '14px',
+                    color: '#0f172a',
+                    minWidth: '160px',
+                    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
+                  }}
+                />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', fontSize: '12px', fontWeight: 600, color: '#1e293b' }}>
+                Time
+                <input
+                  type="time"
+                  value={searchTime}
+                  onChange={(e) => setSearchTime(e.target.value)}
+                  step={1800}
+                  style={{
+                    marginTop: '4px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5f5',
+                    background: '#fff',
+                    fontSize: '14px',
+                    color: '#0f172a',
+                    minWidth: '120px',
+                    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.06)',
+                  }}
+                />
+              </label>
+            </div>
+          )}
+
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#0f172a' }}>
+              {isLiveMode ? 'Live availability' : 'Previewing availability'}
+            </p>
+            <p style={{ margin: 0, fontSize: '12px', color: '#475569' }}>
+              {isLiveMode
+                ? `Updated ${currentTime.toLocaleTimeString([], { hour12: false })}`
+                : formatDisplayTimestamp(referenceTime)}
+            </p>
+          </div>
+        </div>
+
         <div
           style={{
             background: "white",
@@ -2808,14 +2905,14 @@ const FloorPlanSVG = () => {
             {/* Beer Point*/}
             <path
               d="M229.195 1035.5H0.5V0.5H229.195V249.201H418.513V319.039H625.5V722.99H409.931V790.818H229.195V1035.5Z"
-              fill={getSectionColor('beer point')}
-              fillOpacity={0.14}
+              fill={getDeskColor('BeerPoint')}
+              fillOpacity="0.5"
               stroke={hoveredSection === 'Beer Point' ? '#1a1a1a' : 'transparent'}
               strokeWidth={3}
               style={{ cursor: 'pointer', transition: 'all 0.2s' }}
               onMouseEnter={() => setHoveredSection('Beer Point')}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick('Beer Point')}
+              onClick={() => handleSectionClick('BeerPoint')}
             />
 
             <g
@@ -2823,7 +2920,7 @@ const FloorPlanSVG = () => {
               style={{ cursor: 'pointer', transition: 'all 0.2s' }}
               onMouseEnter={() => setHoveredSection('Beer Point')}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick('Beer Point')}
+              onClick={() => handleSectionClick('BeerPoint')}
             >
             </g>
 
@@ -2833,14 +2930,14 @@ const FloorPlanSVG = () => {
               y="2"
               width="110"
               height="125" // 250
-              fill={getSectionColor("Bubble Room1")}
-              fillOpacity="0.3"
+              fill={getDeskColor("BubbleRoom1")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Bubble Room1" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Bubble Room1")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Bubble Room1")}
+              onClick={() => handleSectionClick("BubbleRoom1")}
             />
 
             {/* Bubble Room2*/}
@@ -2849,14 +2946,14 @@ const FloorPlanSVG = () => {
               y="127"
               width="110"
               height="125" // 250
-              fill={getSectionColor("Bubble Room2")}
-              fillOpacity="0.3"
+              fill={getDeskColor("BubbleRoom2")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Bubble Room2" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Bubble Room2")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Bubble Room2")}
+              onClick={() => handleSectionClick("BubbleRoom2")}
             />
 
             {/* Bubble Room3*/}
@@ -2865,14 +2962,14 @@ const FloorPlanSVG = () => {
               y="789"
               width="110"
               height="123"
-              fill={getSectionColor("Bubble Room3")}
-              fillOpacity="0.3"
+              fill={getDeskColor("BubbleRoom3")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Bubble Room3" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Bubble Room3")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Bubble Room3")}
+              onClick={() => handleSectionClick("BubbleRoom3")}
             />
 
             {/* Bubble Room4*/}
@@ -2881,14 +2978,14 @@ const FloorPlanSVG = () => {
               y="912" 
               width="110"
               height="123"
-              fill={getSectionColor("Bubble Room4")}
-              fillOpacity="0.3"
+              fill={getDeskColor("BubbleRoom4")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Bubble Room4" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Bubble Room4")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Bubble Room4")}
+              onClick={() => handleSectionClick("BubbleRoom4")}
             />
 
             {/* Management Office 3 - Far right top */}
@@ -2897,8 +2994,8 @@ const FloorPlanSVG = () => {
               y="6"
               width="131"
               height="240"
-              fill={getSectionColor("ManagementOffice3")}
-              fillOpacity="0.3"
+              fill={getDeskColor("ManagementOffice3")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "ManagementOffice3" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
@@ -2913,14 +3010,14 @@ const FloorPlanSVG = () => {
               y="246"
               width="131"
               height="91"
-              fill={getSectionColor("Bubble Room5")}
-              fillOpacity="0.3"
+              fill={getDeskColor("BubbleRoom5")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Bubble Room5" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Bubble Room5")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Bubble Room5")}
+              onClick={() => handleSectionClick("BubbleRoom5")}
             />
 
             {/* Training Office 1 - Far right middle */}
@@ -2929,14 +3026,14 @@ const FloorPlanSVG = () => {
               y="337"
               width="190"
               height="363"
-              fill={getSectionColor("Training Office 1")}
-              fillOpacity="0.3"
+              fill={getDeskColor("TrainingOffice1")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Training Office 1" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Training Office 1")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Training Office 1")}
+              onClick={() => handleSectionClick("TrainingOffice1")}
             />
 
             {/* Training Office 2 - Far right middle */}
@@ -2945,14 +3042,14 @@ const FloorPlanSVG = () => {
               y="337"
               width="190"
               height="363"
-              fill={getSectionColor("Training Office 2")}
-              fillOpacity="0.3"
+              fill={getDeskColor("TrainingOffice2")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Training Office 2" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Training Office 2")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Training Office 2")}
+              onClick={() => handleSectionClick("TrainingOffice2")}
             />
 
             {/* Bookster Area */}
@@ -2961,14 +3058,14 @@ const FloorPlanSVG = () => {
               y="340"
               width="153"
               height="239"
-              fill={getSectionColor("Bookster Area")}
-              fillOpacity="0.3"
+              fill={getDeskColor("BooksterArea")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Bookster Area" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Bookster Area")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Bookster Area")}
+              onClick={() => handleSectionClick("BooksterArea")}
             />
 
             {/* Bubble Room6 */}
@@ -2977,14 +3074,14 @@ const FloorPlanSVG = () => {
               y="579"
               width="153"
               height="122"
-              fill={getSectionColor("Bubble Room6")}
-              fillOpacity="0.3"
+              fill={getDeskColor("BubbleRoom6")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Bubble Room6" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Bubble Room6")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Bubble Room6")}
+              onClick={() => handleSectionClick("BubbleRoom6")}
             />
 
             {/* Cubicle 1 - TODO: see if it needs separate hitboxes for chairs*/}
@@ -2993,14 +3090,14 @@ const FloorPlanSVG = () => {
               y="120"
               width="48"
               height="87"
-              fill={getSectionColor("Cubicle 1")}
-              fillOpacity="0.3"
+              fill={getDeskColor("Cubicle1")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Cubicle 1" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Cubicle 1")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Cubicle 1")}
+              onClick={() => handleSectionClick("Cubicle1")}
             />
 
             {/* Cubicle 2 - TODO: see if it needs separate hitboxes for chairs*/}
@@ -3009,14 +3106,14 @@ const FloorPlanSVG = () => {
               y="828"
               width="48"
               height="87"
-              fill={getSectionColor("Cubicle 2")}
-              fillOpacity="0.3"
+              fill={getDeskColor("Cubicle2")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Cubicle 2" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Cubicle 2")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Cubicle 2")}
+              onClick={() => handleSectionClick("Cubicle2")}
             />
 
             {/* Cubicle 3 - TODO: see if it needs separate hitboxes for chairs*/}
@@ -3025,14 +3122,14 @@ const FloorPlanSVG = () => {
               y="980"
               width="87"
               height="48"
-              fill={getSectionColor("Cubicle 3")}
-              fillOpacity="0.3"
+              fill={getDeskColor("Cubicle3")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Cubicle 3" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Cubicle 3")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Cubicle 3")}
+              onClick={() => handleSectionClick("Cubicle3")}
             />
 
             {/* Cubicle 4 - TODO: see if it needs separate hitboxes for chairs*/}
@@ -3041,14 +3138,14 @@ const FloorPlanSVG = () => {
               y="155"
               width="87"
               height="48"
-              fill={getSectionColor("Cubicle 4")}
-              fillOpacity="0.3"
+              fill={getDeskColor("Cubicle4")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "Cubicle 4" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
               onMouseEnter={() => setHoveredSection("Cubicle 4")}
               onMouseLeave={() => setHoveredSection(null)}
-              onClick={() => handleSectionClick("Cubicle 4")}
+              onClick={() => handleSectionClick("Cubicle4")}
             />
 
             {/* Management Office 2 - Far right middle bottom */}
@@ -3057,8 +3154,8 @@ const FloorPlanSVG = () => {
               y="700"
               width="130"
               height="151"
-              fill={getSectionColor("ManagementOffice2")}
-              fillOpacity="0.3"
+              fill={getDeskColor("ManagementOffice2")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "ManagementOffice2" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
@@ -3073,8 +3170,8 @@ const FloorPlanSVG = () => {
               y="850"
               width="130"
               height="178"
-              fill={getSectionColor("ManagementOffice1")}
-              fillOpacity="0.3"
+              fill={getDeskColor("ManagementOffice1")}
+              fillOpacity="0.5"
               stroke={hoveredSection === "ManagementOffice1" ? "#1a1a1a" : "transparent"}
               strokeWidth="3"
               style={{ cursor: "pointer", transition: "all 0.2s" }}
@@ -3085,210 +3182,7 @@ const FloorPlanSVG = () => {
           </svg>
         </div>
 
-        {/* Hovered Section Info */}
-        {hoveredSection && (
-          <div
-            style={{
-              marginTop: "20px",
-              background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
-              borderRadius: "12px",
-              padding: "20px",
-              boxShadow: "0 4px 20px rgba(0, 103, 172, 0.1), 0 1px 3px rgba(0, 0, 0, 0.05)",
-              border: "1px solid rgba(0, 103, 172, 0.1)",
-            }}
-          >
-            {(() => {
-              // Check if this is a table to show detailed backend info
-              const isTable = hoveredSection.includes('Table') && 
-                             (hoveredSection.includes('UP') || hoveredSection.includes('DOWN'));
-              
-              if (isTable) {
-                const deskInfo = getDeskInfo(hoveredSection);
-                const deskStatus = getDeskStatus(hoveredSection); // 'available', 'booked', or 'pending'
-                const available = deskStatus === 'available';
-                
-                return (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '12px' }}>
-                      <div
-                        style={{
-                          width: '12px',
-                          height: '12px',
-                          borderRadius: '50%',
-                          background: available ? '#10b981' : '#ef4444',
-                          boxShadow: `0 0 10px ${available ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)'}`,
-                          animation: 'pulse 2s infinite'
-                        }}
-                      />
-                      <h3
-                        style={{
-                          fontSize: "20px",
-                          fontWeight: "700",
-                          color: "#0f172a",
-                          margin: 0
-                        }}
-                      >
-                        {hoveredSection}
-                      </h3>
-                    </div>
-
-                    <div
-                      style={{
-                        display: 'inline-block',
-                        padding: '6px 16px',
-                        borderRadius: '8px',
-                        background: deskStatus === 'available'
-                          ? 'linear-gradient(135deg, #ecfdf5, #d1fae5)' 
-                          : deskStatus === 'pending'
-                          ? 'linear-gradient(135deg, #fef3c7, #fde68a)'
-                          : 'linear-gradient(135deg, #fef2f2, #fee2e2)',
-                        border: deskStatus === 'available' 
-                          ? '1px solid #86efac' 
-                          : deskStatus === 'pending'
-                          ? '1px solid #fbbf24'
-                          : '1px solid #fca5a5',
-                        marginBottom: '12px'
-                      }}
-                    >
-                      <p
-                        style={{
-                          fontSize: "15px",
-                          color: deskStatus === 'available' 
-                            ? "#065f46" 
-                            : deskStatus === 'pending'
-                            ? "#92400e"
-                            : "#991b1b",
-                          fontWeight: "700",
-                          margin: 0
-                        }}
-                      >
-                        {deskStatus === 'available' 
-                          ? "✓ Available Now" 
-                          : deskStatus === 'pending'
-                          ? "⏳ Pending Approval"
-                          : (deskInfo.isAttendance ? "✗ Currently Occupied" : "✗ Currently Booked")}
-                      </p>
-                    </div>
-
-                    {/* Current Booking/Attendance Info */}
-                    {deskInfo.currentBooking && (
-                      <div
-                        style={{
-                          marginTop: '12px',
-                          padding: '12px',
-                          background: '#fef2f2',
-                          borderRadius: '8px',
-                          border: '1px solid #fca5a5',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <p style={{ fontSize: '13px', fontWeight: '600', color: '#dc2626', marginBottom: '6px' }}>
-                          {deskInfo.isAttendance ? '👤 Current Attendance:' : '📅 Current Booking:'}
-                        </p>
-                        <p style={{ fontSize: '12px', color: '#666', margin: '3px 0' }}>
-                          <strong>From:</strong> {new Date(deskInfo.currentBooking.start || deskInfo.currentBooking.startTime).toLocaleString()}
-                        </p>
-                        {(deskInfo.currentBooking.end || deskInfo.currentBooking.endTime) ? (
-                          <p style={{ fontSize: '12px', color: '#666', margin: '3px 0' }}>
-                            <strong>Until:</strong> {new Date(deskInfo.currentBooking.end || deskInfo.currentBooking.endTime).toLocaleString()}
-                          </p>
-                        ) : (
-                          <p style={{ fontSize: '12px', color: '#f59e0b', margin: '3px 0', fontStyle: 'italic' }}>
-                            <strong>Status:</strong> Active (no end time)
-                          </p>
-                        )}
-                        {deskInfo.currentBooking.status && (
-                          <p style={{ fontSize: '12px', color: '#666', margin: '3px 0' }}>
-                            <strong>Status:</strong> {deskInfo.currentBooking.status}
-                          </p>
-                        )}
-                        {deskInfo.currentBooking.userId && (
-                          <p style={{ fontSize: '12px', color: '#666', margin: '3px 0' }}>
-                            <strong>User ID:</strong> {deskInfo.currentBooking.userId}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Next Booking Info */}
-                    {!deskInfo.currentBooking && deskInfo.nextBooking && (
-                      <div
-                        style={{
-                          marginTop: '12px',
-                          padding: '12px',
-                          background: '#fffbeb',
-                          borderRadius: '8px',
-                          border: '1px solid #fde047',
-                          textAlign: 'left'
-                        }}
-                      >
-                        <p style={{ fontSize: '13px', fontWeight: '600', color: '#d97706', marginBottom: '6px' }}>
-                          ⏰ Next {deskInfo.nextBooking.start ? 'Attendance:' : 'Booking:'}
-                        </p>
-                        <p style={{ fontSize: '12px', color: '#666', margin: '3px 0' }}>
-                          <strong>Starts:</strong> {new Date(deskInfo.nextBooking.start || deskInfo.nextBooking.startTime).toLocaleString()}
-                        </p>
-                        {(deskInfo.nextBooking.end || deskInfo.nextBooking.endTime) && (
-                          <p style={{ fontSize: '12px', color: '#666', margin: '3px 0' }}>
-                            <strong>Ends:</strong> {new Date(deskInfo.nextBooking.end || deskInfo.nextBooking.endTime).toLocaleString()}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Total Bookings Count */}
-                    {deskInfo.allBookings && deskInfo.allBookings.length > 0 && (
-                      <p style={{ fontSize: '12px', color: '#64748b', marginTop: '12px', fontWeight: '500' }}>
-                        📊 Total bookings today: {deskInfo.allBookings.length}
-                      </p>
-                    )}
-
-                    <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '12px', fontStyle: 'italic' }}>
-                      Click to {available ? 'book' : 'view details'}
-                    </p>
-
-                    <style>{`
-                      @keyframes pulse {
-                        0%, 100% { opacity: 1; transform: scale(1); }
-                        50% { opacity: 0.7; transform: scale(1.1); }
-                      }
-                    `}</style>
-                  </>
-                );
-              } else {
-                // Original display for non-table sections
-                return (
-                  <>
-                    <h3
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: "bold",
-                        color: "#1a1a1a",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      {hoveredSection}
-                    </h3>
-                    <p
-                      style={{
-                        fontSize: "14px",
-                        color: isAvailable(hoveredSection) ? "#10b981" : "#ef4444",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {isAvailable(hoveredSection)
-                        ? "✓ Available Now"
-                        : "✗ Currently Booked"}
-                    </p>
-                    <p style={{ fontSize: "12px", color: "#666", marginTop: "5px" }}>
-                      Click to book this area
-                    </p>
-                  </>
-                );
-              }
-            })()}
-          </div>
-        )}
+        {/* Hovered Section Info removed per design request */}
       </div>
 
       {/* Booking Modal */}
@@ -3296,9 +3190,9 @@ const FloorPlanSVG = () => {
         <BookingModal
           section={selectedSection}
           deskId={selectedSection}
-          isAvailable={getDeskStatus(selectedSection) === 'available'}
-          deskStatus={getDeskStatus(selectedSection)}
-          currentTime={currentTime}
+          deskStatus={selectedDeskStatus ?? 'available'}
+          currentTime={referenceTime}
+          isLiveMode={isLiveMode}
           onClose={handleCloseModal}
           onConfirm={handleBookingConfirm}
         />

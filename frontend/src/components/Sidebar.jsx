@@ -170,6 +170,15 @@ function Sidebar() {
         </svg>
       )
     },
+    { 
+      path: '/admin/register',
+      label: '🔐 Register Users',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+      )
+    },
   ] : [];
 
   return (
@@ -267,6 +276,8 @@ function Sidebar() {
           boxShadow: '4px 0 6px rgba(0, 0, 0, 0.1)',
           position: 'relative',
           zIndex: 9999,
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch'
         }}
         className="sidebar"
       >
@@ -341,8 +352,7 @@ function Sidebar() {
       {/* Navigation */}
       <nav style={{
         flex: 1,
-        padding: '1.5rem 0',
-        overflowY: 'auto'
+        padding: '1.5rem 0'
       }}>
         {[...navItems, ...adminNavItems].map((item) => {
           const isActive = location.pathname === item.path;
@@ -448,7 +458,7 @@ function Sidebar() {
     </motion.div>
     
     {/* Add CSS for responsive behavior */}
-    <style>{`
+      <style>{`
       @media (max-width: 768px) {
         .mobile-menu-button {
           display: flex !important;
@@ -464,6 +474,8 @@ function Sidebar() {
           left: ${isMobileMenuOpen ? '0' : '-280px'} !important;
           height: 100vh;
           transition: left 0.3s ease !important;
+          overflow-y: auto !important;
+          -webkit-overflow-scrolling: touch !important;
         }
       }
       

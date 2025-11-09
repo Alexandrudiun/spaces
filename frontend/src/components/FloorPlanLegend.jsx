@@ -1,6 +1,5 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import BubbleLegendChips from './BubbleLegendChips';
 
 const FloorPlanLegend = ({ currentTime }) => {
   const containerVariants = {
@@ -162,35 +161,6 @@ const FloorPlanLegend = ({ currentTime }) => {
           />
           <span style={{ fontSize: '13px', color: '#92400e', fontWeight: '600' }}>Pending</span>
         </motion.div>
-
-        <motion.div 
-          variants={itemVariants}
-          whileHover={{ scale: 1.05, y: -2 }}
-          style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '10px',
-            background: 'linear-gradient(135deg, #f8fafc, #e2e8f0)',
-            padding: '8px 14px',
-            borderRadius: '10px',
-            border: '1px solid #cbd5e1',
-            boxShadow: '0 2px 8px rgba(148, 163, 184, 0.1)'
-          }}
-        >
-          <div
-            style={{
-              width: '22px',
-              height: '22px',
-              background: 'linear-gradient(135deg, #94a3b8, #64748b)',
-              borderRadius: '6px',
-              boxShadow: '0 2px 8px rgba(148, 163, 184, 0.3)'
-            }}
-          />
-          <span style={{ fontSize: '13px', color: '#475569', fontWeight: '600' }}>Hover to see</span>
-        </motion.div>
-
-        {/* Bubble room legend chips with improved styling */}
-        <BubbleLegendChips />
       </div>
 
       {/* Add keyframes for shimmer animation */}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const BookingModal = ({ section, isAvailable, currentTime, onClose, onConfirm, deskId, deskStatus = 'available' }) => {
+const BookingModal = ({ section, currentTime, onClose, onConfirm, deskId, deskStatus = 'available', isLiveMode = true }) => {
   const [bookingData, setBookingData] = useState({
     section: section,
     deskId: deskId,
@@ -30,6 +30,20 @@ const BookingModal = ({ section, isAvailable, currentTime, onClose, onConfirm, d
       timeOptions.push(timeStr);
     }
   }
+
+  const safeCurrentTime = currentTime instanceof Date && !Number.isNaN(currentTime.getTime())
+    ? currentTime
+    : new Date();
+
+  const liveLabel = safeCurrentTime.toLocaleTimeString([], { hour12: false });
+  const searchLabel = safeCurrentTime.toLocaleString([], {
+    hour12: false,
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 
   return (
     <AnimatePresence>
@@ -134,7 +148,9 @@ const BookingModal = ({ section, isAvailable, currentTime, onClose, onConfirm, d
               </span>
               <span>
                 {deskStatus === 'available'
-                  ? `Available now (${currentTime.toLocaleTimeString()})`
+                  ? isLiveMode
+                    ? `Available now (${liveLabel})`
+                    : `Available on ${searchLabel}`
                   : deskStatus === 'pending'
                   ? 'Pending approval - Select a different time or wait for approval'
                   : 'Currently booked - Select a different time'}

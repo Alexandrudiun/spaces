@@ -5,7 +5,10 @@ const AdminBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
-  const [processedBookings, setProcessedBookings] = useState(new Set()); // Track accepted/declined bookings
+  const [processedBookings, setProcessedBookings] = useState(new Set());
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  );
 
   useEffect(() => {
     fetchPendingBookings();
@@ -13,16 +16,30 @@ const AdminBookings = () => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isTablet = viewportWidth <= 1024;
+  const isMobile = viewportWidth <= 640;
+
   const fetchPendingBookings = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      
+
       const response = await fetch('https://molsongbsspaces.onrender.com/api/desk/all', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`
         }
       });
 
@@ -32,12 +49,12 @@ const AdminBookings = () => {
 
       const data = await response.json();
       const desksData = data.data || data;
-      
-      const pendingBookings = [];
-      desksData.forEach(desk => {
+
+      const allBookings = [];
+      desksData.forEach((desk) => {
         if (desk.bookings && desk.bookings.length > 0) {
-          desk.bookings.forEach(booking => {
-            pendingBookings.push({
+          desk.bookings.forEach((booking) => {
+            allBookings.push({
               ...booking,
               deskId: desk._id || desk.id,
               deskName: desk.name || desk.locationId,
@@ -47,8 +64,8 @@ const AdminBookings = () => {
         }
       });
 
-      setBookings(pendingBookings);
-      console.log('📋 All bookings found:', pendingBookings);
+      setBookings(allBookings);
+      console.log('📋 All bookings found:', allBookings);
     } catch (error) {
       console.error('Error fetching bookings:', error);
     } finally {
@@ -56,18 +73,30 @@ const AdminBookings = () => {
     }
   };
 
+  const markBookingProcessed = (bookingId) => {
+    if (!bookingId) {
+      return;
+    }
+
+    setProcessedBookings((prev) => {
+      const next = new Set(prev);
+      next.add(bookingId);
+      return next;
+    });
+  };
+
   const handleAccept = async (booking) => {
     try {
       setProcessingId(booking._id);
       const token = localStorage.getItem('token');
-      
+
       console.log('🔄 Accepting booking:', booking);
-      
+
       const response = await fetch(`https://molsongbsspaces.onrender.com/api/desk/${booking.deskId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
           bookingId: booking._id,
@@ -78,23 +107,16 @@ const AdminBookings = () => {
       const result = await response.json().catch(() => ({}));
       console.log('📥 Response:', { status: response.status, data: result });
 
-      // Even if backend returns 500, it might have updated the DB
-      // So we'll mark as processed and refresh to verify
       alert('✅ Booking accepted!');
-      
-      // Mark this booking as processed
-      setProcessedBookings(prev => new Set([...prev, booking._id]));
-      
-      // Refresh the list to get updated data from backend
+      markBookingProcessed(booking._id);
+
       setTimeout(() => {
         fetchPendingBookings();
       }, 1000);
-      
     } catch (error) {
       console.error('Error accepting booking:', error);
-      // Still try to refresh in case it worked on backend
       alert('Request sent - refreshing to verify...');
-      setProcessedBookings(prev => new Set([...prev, booking._id]));
+      markBookingProcessed(booking._id);
       setTimeout(() => {
         fetchPendingBookings();
       }, 1000);
@@ -107,14 +129,14 @@ const AdminBookings = () => {
     try {
       setProcessingId(booking._id);
       const token = localStorage.getItem('token');
-      
+
       console.log('🔄 Declining booking:', booking);
-      
+
       const response = await fetch(`https://molsongbsspaces.onrender.com/api/desk/${booking.deskId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
           bookingId: booking._id,
@@ -125,23 +147,16 @@ const AdminBookings = () => {
       const result = await response.json().catch(() => ({}));
       console.log('📥 Response:', { status: response.status, data: result });
 
-      // Even if backend returns 500, it might have updated the DB
-      // So we'll mark as processed and refresh to verify
       alert('❌ Booking declined!');
-      
-      // Mark this booking as processed
-      setProcessedBookings(prev => new Set([...prev, booking._id]));
-      
-      // Refresh the list to get updated data from backend
+      markBookingProcessed(booking._id);
+
       setTimeout(() => {
         fetchPendingBookings();
       }, 1000);
-      
     } catch (error) {
       console.error('Error declining booking:', error);
-      // Still try to refresh in case it worked on backend
       alert('Request sent - refreshing to verify...');
-      setProcessedBookings(prev => new Set([...prev, booking._id]));
+      markBookingProcessed(booking._id);
       setTimeout(() => {
         fetchPendingBookings();
       }, 1000);
@@ -161,596 +176,964 @@ const AdminBookings = () => {
     });
   };
 
+  const formatUserToken = (value) => {
+    if (value === null || value === undefined) {
+      return 'N/A';
+    }
+
+    const text = typeof value === 'string' ? value : String(value);
+
+    if (text.length <= 10) {
+      return text;
+    }
+
+    return `${text.slice(0, 4)}...${text.slice(-4)}`;
+  };
+
+  const getStatusToken = (status = 'pending') => {
+    switch (status) {
+      case 'accepted':
+        return {
+          chipBg: 'linear-gradient(135deg, #dcfce7, #bbf7d0)',
+          chipBorder: '1px solid rgba(34, 197, 94, 0.35)',
+          chipColor: '#166534',
+          icon: '✓',
+          label: 'Accepted'
+        };
+      case 'declined':
+        return {
+          chipBg: 'linear-gradient(135deg, #fee2e2, #fecaca)',
+          chipBorder: '1px solid rgba(239, 68, 68, 0.35)',
+          chipColor: '#991b1b',
+          icon: '✗',
+          label: 'Declined'
+        };
+      case 'pending':
+      default:
+        return {
+          chipBg: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+          chipBorder: '1px solid rgba(251, 191, 36, 0.45)',
+          chipColor: '#92400e',
+          icon: '⏳',
+          label: 'Pending'
+        };
+    }
+  };
+
+  const infoCardBase = {
+    background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(241, 245, 249, 0.96))',
+    border: '1px solid rgba(148, 163, 184, 0.2)',
+    borderRadius: '12px',
+    padding: '12px 16px',
+    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.6)'
+  };
+
+  const statsCardBase = {
+    background: 'linear-gradient(135deg, #ffffff, #f8fafc)',
+    border: '1px solid rgba(148, 163, 184, 0.25)',
+    borderRadius: '16px',
+    padding: 'clamp(16px, 2vw, 20px) clamp(20px, 4vw, 28px)',
+    minWidth: 'min(200px, 100%)',
+    boxShadow: '0 12px 24px rgba(15, 23, 42, 0.08)',
+    textAlign: 'center'
+  };
+
+  const detailLabelStyles = {
+    fontSize: '11px',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: '1px',
+    fontWeight: '600',
+    marginBottom: '6px'
+  };
+
+  const detailValueStyles = {
+    fontSize: '13px',
+    color: '#1e293b',
+    fontWeight: '600',
+    letterSpacing: '0.2px'
+  };
+
+  const badgeStyles = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '6px 12px',
+    borderRadius: '999px',
+    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.18), rgba(14, 116, 144, 0.18))',
+    border: '1px solid rgba(37, 99, 235, 0.24)',
+    color: '#1d4ed8',
+    fontSize: '12px',
+    fontWeight: '600',
+    letterSpacing: '0.3px'
+  };
+
+  const pendingCount = bookings.filter((booking) => (booking.status || 'pending') === 'pending').length;
+  const acceptedCount = bookings.filter((booking) => booking.status === 'accepted').length;
+  const declinedCount = bookings.filter((booking) => booking.status === 'declined').length;
+
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #001529 0%, #002147 50%, #003566 100%)',
-      padding: '40px 20px',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
-      {/* Subtle Animated Background */}
-      <div style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        opacity: 0.05,
-        backgroundImage: `
-          radial-gradient(circle at 10% 20%, #0067AC 0%, transparent 20%),
-          radial-gradient(circle at 90% 80%, #F6DD58 0%, transparent 20%),
-          radial-gradient(circle at 50% 50%, #0067AC 0%, transparent 25%)
-        `,
-        animation: 'gradientShift 20s ease infinite',
-        pointerEvents: 'none'
-      }} />
-
-      {/* Grid Pattern Overlay */}
-      <div style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)',
-        backgroundSize: '50px 50px',
-        opacity: 0.3,
-        pointerEvents: 'none'
-      }} />
-
-      <div style={{
-        maxWidth: '1400px',
-        margin: '0 auto',
+    <div
+      style={{
+        minHeight: '100vh',
+        height: '100vh',
+        background: 'linear-gradient(135deg, #f8fafc 0%, #e0e7ff 45%, #dbeafe 100%)',
+        padding: isMobile ? '24px 16px 36px' : isTablet ? '32px 20px 44px' : '40px 24px 52px',
         position: 'relative',
-        zIndex: 1
-      }}>
-        {/* Header */}
+        overflowX: 'hidden',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        touchAction: 'pan-y',
+        overscrollBehavior: 'auto'
+      }}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          opacity: 0.08,
+          backgroundImage: `
+            radial-gradient(circle at 12% 22%, rgba(0,103,172,0.35) 0%, transparent 22%),
+            radial-gradient(circle at 88% 78%, rgba(246,221,88,0.35) 0%, transparent 22%),
+            radial-gradient(circle at 50% 50%, rgba(2,132,199,0.25) 0%, transparent 28%)
+          `,
+          animation: 'gradientShift 20s ease infinite',
+          pointerEvents: 'none'
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundImage:
+            'linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+          opacity: 0.35,
+          pointerEvents: 'none'
+        }}
+      />
+
+      <div
+        style={{
+          maxWidth: isTablet ? '100%' : '1320px',
+          margin: '0 auto',
+          position: 'relative',
+          zIndex: 1,
+          width: '100%',
+          padding: isMobile ? '0' : '0 8px'
+        }}
+      >
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           style={{
-            textAlign: 'center',
-            marginBottom: '50px'
+            marginBottom: isMobile ? '26px' : '36px'
           }}
         >
-          <motion.div
-            animate={{ y: [0, -8, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+          <div
             style={{
-              fontSize: '48px',
-              marginBottom: '24px',
-              filter: 'drop-shadow(0 0 20px rgba(246, 221, 88, 0.4))',
-              display: 'inline-block'
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: isTablet ? 'center' : 'space-between',
+              flexWrap: 'wrap',
+              gap: isMobile ? '16px' : '20px',
+              textAlign: isTablet ? 'center' : 'left'
             }}
           >
-            🔐
-          </motion.div>
-
-          <h1 style={{
-            fontSize: '42px',
-            fontWeight: '700',
-            background: 'linear-gradient(135deg, #ffffff 0%, #F6DD58 50%, #ffffff 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            marginBottom: '12px',
-            letterSpacing: '-0.5px',
-            textShadow: '0 0 30px rgba(246, 221, 88, 0.2)'
-          }}>
-            Admin Control Panel
-          </h1>
-
-          <p style={{
-            color: 'rgba(255, 255, 255, 0.6)',
-            fontSize: '16px',
-            fontWeight: '400',
-            margin: '0 0 24px 0',
-            letterSpacing: '0.5px'
-          }}>
-            Manage and approve desk booking requests
-          </p>
-
-          <div style={{
-            height: '1px',
-            maxWidth: '400px',
-            margin: '0 auto',
-            background: 'linear-gradient(90deg, transparent, rgba(246, 221, 88, 0.5), transparent)',
-            boxShadow: '0 0 10px rgba(246, 221, 88, 0.3)'
-          }} />
+            <div
+              style={{
+                display: 'flex',
+                alignItems: isTablet ? 'center' : 'flex-start',
+                gap: isMobile ? '14px' : '18px',
+                flexDirection: isTablet ? 'column' : 'row'
+              }}
+            >
+              <motion.div
+                animate={{
+                  rotate: [0, 4, -4, 0],
+                  scale: [1, 1.04, 1]
+                }}
+                transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 3 }}
+                style={{
+                  background: 'linear-gradient(135deg, #0067AC, #1d4ed8)',
+                  borderRadius: '14px',
+                  padding: '14px',
+                  boxShadow: '0 10px 25px rgba(30, 64, 175, 0.25)'
+                }}
+              >
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M12 3L2 9L12 15L22 9L12 3Z"
+                    stroke="#bfdbfe"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M4 10V17C4 17.5304 4.21071 18.0391 4.58579 18.4142C4.96086 18.7893 5.46957 19 6 19H10"
+                    stroke="#bfdbfe"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M20 10V14"
+                    stroke="#bfdbfe"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M13.5 18V21"
+                    stroke="#bfdbfe"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <path
+                    d="M10.5 18H16.5"
+                    stroke="#bfdbfe"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </motion.div>
+              <div
+                style={{
+                  textAlign: isTablet ? 'center' : 'left'
+                }}
+              >
+                <h1
+                  style={{
+                    fontSize: '34px',
+                    fontWeight: '800',
+                    background: 'linear-gradient(135deg, #0f172a, #1d4ed8)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                    letterSpacing: '-0.4px',
+                    margin: 0
+                  }}
+                >
+                  Admin Bookings
+                </h1>
+                <p
+                  style={{
+                    color: '#475569',
+                    margin: '6px 0 0 0',
+                    fontSize: '16px',
+                    fontWeight: '500'
+                  }}
+                >
+                  Review and manage desk reservation requests across the workspace
+                </p>
+              </div>
+            </div>
+          </div>
         </motion.div>
 
-        {/* Stats Bar */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2 }}
           style={{
-            display: 'flex',
-            gap: '24px',
-            marginBottom: '40px',
-            flexWrap: 'wrap',
-            justifyContent: 'center'
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))',
+            gap: isMobile ? '16px' : '24px',
+            marginBottom: isMobile ? '28px' : '40px'
           }}
         >
           <motion.div
-            whileHover={{ scale: 1.03, boxShadow: '0 0 30px rgba(246, 221, 88, 0.3)' }}
+            whileHover={{ y: -4, boxShadow: '0 16px 32px rgba(96, 165, 250, 0.22)' }}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(246, 221, 88, 0.15)',
-              borderRadius: '16px',
-              padding: '24px 40px',
-              textAlign: 'center',
-              minWidth: '180px',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-              transition: 'all 0.3s ease'
+              ...statsCardBase,
+              border: '1px solid rgba(59, 130, 246, 0.2)',
+              background: 'linear-gradient(135deg, #eff6ff, #f8fafc)',
+              height: '100%'
             }}
           >
-            <div style={{
-              fontSize: '36px',
-              fontWeight: '700',
-              background: 'linear-gradient(135deg, #F6DD58 0%, #fbbf24 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              marginBottom: '8px',
-              filter: 'drop-shadow(0 0 10px rgba(246, 221, 88, 0.5))'
-            }}>
+            <div
+              style={{
+                fontSize: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '1.2px',
+                fontWeight: '600',
+                color: '#1d4ed8',
+                marginBottom: '8px'
+              }}
+            >
+              Total Requests
+            </div>
+            <div
+              style={{
+                fontSize: '36px',
+                fontWeight: '700',
+                color: '#0f172a',
+                letterSpacing: '-0.5px',
+                marginBottom: '6px'
+              }}
+            >
               {loading ? '...' : bookings.length}
             </div>
-            <div style={{
-              fontSize: '12px',
-              color: 'rgba(255, 255, 255, 0.5)',
-              textTransform: 'uppercase',
-              letterSpacing: '1.5px',
-              fontWeight: '600'
-            }}>
-              Total Bookings
+            <div
+              style={{
+                fontSize: '12px',
+                color: 'rgba(15, 23, 42, 0.55)'
+              }}
+            >
+              All booking records fetched
             </div>
           </motion.div>
 
           <motion.div
-            whileHover={{ scale: 1.03, boxShadow: '0 0 30px rgba(74, 222, 128, 0.3)' }}
+            whileHover={{ y: -4, boxShadow: '0 16px 32px rgba(217, 119, 6, 0.18)' }}
             style={{
-              background: 'rgba(255, 255, 255, 0.05)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(74, 222, 128, 0.15)',
-              borderRadius: '16px',
-              padding: '24px 40px',
-              textAlign: 'center',
-              minWidth: '180px',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-              transition: 'all 0.3s ease'
+              ...statsCardBase,
+              border: '1px solid rgba(217, 119, 6, 0.25)',
+              background: 'linear-gradient(135deg, #fff7ed, #fffbeb)',
+              height: '100%'
             }}
           >
-            <motion.div
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity }}
+            <div
+              style={{
+                fontSize: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '1.2px',
+                fontWeight: '600',
+                color: '#b45309',
+                marginBottom: '8px'
+              }}
+            >
+              Pending Review
+            </div>
+            <div
               style={{
                 fontSize: '36px',
                 fontWeight: '700',
-                color: '#4ade80',
-                marginBottom: '8px',
-                filter: 'drop-shadow(0 0 10px rgba(74, 222, 128, 0.5))'
+                color: '#92400e',
+                letterSpacing: '-0.5px',
+                marginBottom: '6px'
               }}
             >
-              ●
-            </motion.div>
-            <div style={{
-              fontSize: '12px',
-              color: 'rgba(255, 255, 255, 0.5)',
-              textTransform: 'uppercase',
-              letterSpacing: '1.5px',
-              fontWeight: '600'
-            }}>
-              Live Monitoring
+              {loading ? '...' : pendingCount}
+            </div>
+            <div
+              style={{
+                fontSize: '12px',
+                color: 'rgba(180, 83, 9, 0.65)'
+              }}
+            >
+              Awaiting admin action
+            </div>
+          </motion.div>
+
+          <motion.div
+            whileHover={{ y: -4, boxShadow: '0 16px 32px rgba(34, 197, 94, 0.22)' }}
+            style={{
+              ...statsCardBase,
+              border: '1px solid rgba(34, 197, 94, 0.25)',
+              background: 'linear-gradient(135deg, #ecfdf5, #f0fdf4)',
+              height: '100%'
+            }}
+          >
+            <div
+              style={{
+                fontSize: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '1.2px',
+                fontWeight: '600',
+                color: '#166534',
+                marginBottom: '8px'
+              }}
+            >
+              Approved
+            </div>
+            <div
+              style={{
+                fontSize: '36px',
+                fontWeight: '700',
+                color: '#14532d',
+                letterSpacing: '-0.5px',
+                marginBottom: '6px'
+              }}
+            >
+              {loading ? '...' : acceptedCount}
+            </div>
+            <div
+              style={{
+                fontSize: '12px',
+                color: 'rgba(22, 101, 52, 0.65)'
+              }}
+            >
+              Confirmed desk bookings
+            </div>
+          </motion.div>
+
+          <motion.div
+            whileHover={{ y: -4, boxShadow: '0 16px 32px rgba(248, 113, 113, 0.18)' }}
+            style={{
+              ...statsCardBase,
+              border: '1px solid rgba(248, 113, 113, 0.25)',
+              background: 'linear-gradient(135deg, #fef2f2, #fee2e2)',
+              height: '100%'
+            }}
+          >
+            <div
+              style={{
+                fontSize: '12px',
+                textTransform: 'uppercase',
+                letterSpacing: '1.2px',
+                fontWeight: '600',
+                color: '#b91c1c',
+                marginBottom: '8px'
+              }}
+            >
+              Declined
+            </div>
+            <div
+              style={{
+                fontSize: '36px',
+                fontWeight: '700',
+                color: '#991b1b',
+                letterSpacing: '-0.5px',
+                marginBottom: '6px'
+              }}
+            >
+              {loading ? '...' : declinedCount}
+            </div>
+            <div
+              style={{
+                fontSize: '12px',
+                color: 'rgba(185, 28, 28, 0.65)'
+              }}
+            >
+              Marked as unavailable
             </div>
           </motion.div>
         </motion.div>
 
-        {/* Loading State */}
         {loading && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             style={{
-              background: 'rgba(255, 255, 255, 0.03)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              background: 'rgba(255, 255, 255, 0.85)',
+              backdropFilter: 'blur(14px)',
+              border: '1px solid rgba(148, 163, 184, 0.25)',
               borderRadius: '20px',
-              padding: '60px',
+              padding: isMobile ? '32px 24px' : '48px',
               textAlign: 'center',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)'
+              boxShadow: '0 20px 45px rgba(15, 23, 42, 0.12)'
             }}
           >
-            <div style={{
-              width: '50px',
-              height: '50px',
-              border: '3px solid rgba(246, 221, 88, 0.1)',
-              borderTop: '3px solid #F6DD58',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto 20px',
-              boxShadow: '0 0 20px rgba(246, 221, 88, 0.3)'
-            }} />
-            <p style={{ 
-              color: 'rgba(255, 255, 255, 0.7)',
-              fontSize: '14px',
-              margin: 0,
-              letterSpacing: '0.5px'
-            }}>
+            <div
+              style={{
+                width: isMobile ? '42px' : '50px',
+                height: isMobile ? '42px' : '50px',
+                border: '3px solid rgba(14, 116, 144, 0.2)',
+                borderTop: '3px solid #1d4ed8',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+                margin: '0 auto 20px',
+                boxShadow: '0 0 15px rgba(29, 78, 216, 0.25)'
+              }}
+            />
+            <p
+              style={{
+                color: '#475569',
+                fontSize: '14px',
+                margin: 0,
+                letterSpacing: '0.5px'
+              }}
+            >
               Loading booking data...
             </p>
           </motion.div>
         )}
 
-        {/* Empty State */}
         {!loading && bookings.length === 0 && (
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4 }}
             style={{
-              background: 'rgba(255, 255, 255, 0.03)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(246, 221, 88, 0.1)',
+              background: 'rgba(255, 255, 255, 0.88)',
+              backdropFilter: 'blur(14px)',
+              border: '1px solid rgba(148, 163, 184, 0.24)',
               borderRadius: '20px',
-              padding: '80px 40px',
+              padding: isMobile ? '44px 24px' : isTablet ? '60px 32px' : '70px 36px',
               textAlign: 'center',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)'
+              boxShadow: '0 20px 45px rgba(15, 23, 42, 0.12)'
             }}
           >
-            <motion.div 
+            <motion.div
               animate={{ scale: [1, 1.05, 1] }}
-              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-              style={{ 
-                fontSize: '72px', 
-                marginBottom: '24px',
-                filter: 'drop-shadow(0 0 20px rgba(74, 222, 128, 0.4))'
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              style={{
+                fontSize: isMobile ? '52px' : '64px',
+                marginBottom: '20px',
+                filter: 'drop-shadow(0 0 18px rgba(34, 197, 94, 0.35))'
               }}
             >
               ✓
             </motion.div>
-            <h2 style={{ 
-              fontSize: '28px', 
-              color: '#ffffff', 
-              marginBottom: '12px',
-              fontWeight: '600',
-              letterSpacing: '-0.5px'
-            }}>
+            <h2
+              style={{
+                fontSize: isMobile ? '24px' : '28px',
+                color: '#0f172a',
+                marginBottom: '10px',
+                fontWeight: '600',
+                letterSpacing: '-0.5px'
+              }}
+            >
               All Clear
             </h2>
-            <p style={{ 
-              color: 'rgba(255, 255, 255, 0.5)', 
-              fontSize: '15px',
-              margin: 0,
-              letterSpacing: '0.3px'
-            }}>
+            <p
+              style={{
+                color: '#475569',
+                fontSize: '14px',
+                margin: 0,
+                letterSpacing: '0.3px'
+              }}
+            >
               No booking requests require your attention
             </p>
           </motion.div>
         )}
 
-        {/* Bookings List */}
         {!loading && bookings.length > 0 && (
-          <div style={{ display: 'grid', gap: '20px' }}>
-            {bookings.map((booking, index) => (
-              <motion.div
-                key={booking._id || index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05, duration: 0.4 }}
-                whileHover={{ 
-                  y: -2,
-                  boxShadow: '0 12px 40px rgba(246, 221, 88, 0.15)'
-                }}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  backdropFilter: 'blur(20px)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                  borderRadius: '16px',
-                  padding: '28px',
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  transition: 'all 0.3s ease'
-                }}
-              >
-                {/* Top Glow */}
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: '2px',
-                  background: 'linear-gradient(90deg, transparent, #F6DD58, transparent)',
-                  boxShadow: '0 0 10px rgba(246, 221, 88, 0.5)'
-                }} />
+          <div
+            style={{
+              display: 'grid',
+              gap: isMobile ? '18px' : '24px'
+            }}
+          >
+            {bookings.map((booking, index) => {
+              const statusToken = getStatusToken(booking.status || 'pending');
+              const bookingKey = booking._id || booking.id || `${booking.deskId || 'desk'}-${booking.start || index}`;
+              const bookingId = booking._id;
+              const isProcessing = processingId === bookingId;
+              const isCompleted =
+                booking.status === 'accepted' || booking.status === 'declined' || processedBookings.has(bookingId);
+              const isAccepted = booking.status === 'accepted';
+              const isDeclined = booking.status === 'declined';
+              const requesterToken = formatUserToken(booking.userId);
+              const attendeeIds = Array.isArray(booking.attendees)
+                ? Array.from(new Set(booking.attendees))
+                : [];
 
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'auto 1fr auto',
-                  gap: '32px',
-                  alignItems: 'center'
-                }}>
-                  {/* Desk Card */}
-                  <motion.div
-                    whileHover={{ scale: 1.03 }}
+              return (
+                <motion.div
+                  key={bookingKey}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05, duration: 0.4 }}
+                  whileHover={{
+                    y: -2,
+                    boxShadow: '0 18px 36px rgba(15, 23, 42, 0.14)'
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, rgba(248, 250, 252, 0.96), rgba(255, 255, 255, 0.98))',
+                    border: '1px solid rgba(148, 163, 184, 0.25)',
+                    borderRadius: '18px',
+                    padding: isMobile ? '18px 18px' : isTablet ? '20px 22px' : '20px 24px',
+                    boxShadow: '0 14px 32px rgba(15, 23, 42, 0.1)',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  <div
                     style={{
-                      background: 'linear-gradient(135deg, rgba(0, 103, 172, 0.3) 0%, rgba(0, 33, 71, 0.5) 100%)',
-                      border: '1px solid rgba(246, 221, 88, 0.3)',
-                      padding: '20px',
-                      borderRadius: '12px',
-                      minWidth: '140px',
-                      textAlign: 'center',
-                      boxShadow: '0 0 20px rgba(246, 221, 88, 0.1), inset 0 0 20px rgba(246, 221, 88, 0.05)',
-                      transition: 'all 0.3s ease'
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: '4px',
+                      background: statusToken.chipBg,
+                      opacity: 0.7
+                    }}
+                  />
+
+                  <div
+                    style={{
+                      position: 'relative',
+                      zIndex: 1,
+                      display: 'flex',
+                      flexDirection: isTablet ? 'column' : 'row',
+                      flexWrap: isTablet ? 'nowrap' : 'wrap',
+                      gap: isMobile ? '18px' : '24px',
+                      alignItems: 'stretch',
+                      justifyContent: 'space-between'
                     }}
                   >
-                    <div style={{ 
-                      fontSize: '28px', 
-                      marginBottom: '10px',
-                      filter: 'drop-shadow(0 0 8px rgba(246, 221, 88, 0.3))'
-                    }}>
-                      🪑
-                    </div>
-                    <div style={{ 
-                      fontWeight: '600', 
-                      fontSize: '13px',
-                      color: '#F6DD58',
-                      letterSpacing: '0.3px'
-                    }}>
-                      {booking.locationId || booking.deskName}
-                    </div>
-                  </motion.div>
-
-                  {/* Details */}
-                  <div>
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                      gap: '16px',
-                      marginBottom: '16px'
-                    }}>
-                      <div style={{
-                        background: 'rgba(0, 0, 0, 0.3)',
-                        padding: '14px 18px',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                        boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.2)'
-                      }}>
-                        <div style={{ 
-                          fontSize: '11px', 
-                          color: 'rgba(255, 255, 255, 0.4)', 
-                          marginBottom: '6px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          textTransform: 'uppercase',
-                          letterSpacing: '1px',
-                          fontWeight: '600'
-                        }}>
-                          <span style={{ fontSize: '14px' }}>📅</span> Start Time
-                        </div>
-                        <div style={{ 
-                          fontWeight: '500', 
-                          color: '#ffffff',
-                          fontSize: '14px',
-                          letterSpacing: '0.2px'
-                        }}>
-                          {formatDateTime(booking.start)}
-                        </div>
-                      </div>
-
-                      <div style={{
-                        background: 'rgba(0, 0, 0, 0.3)',
-                        padding: '14px 18px',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                        boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.2)'
-                      }}>
-                        <div style={{ 
-                          fontSize: '11px', 
-                          color: 'rgba(255, 255, 255, 0.4)', 
-                          marginBottom: '6px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          textTransform: 'uppercase',
-                          letterSpacing: '1px',
-                          fontWeight: '600'
-                        }}>
-                          <span style={{ fontSize: '14px' }}>⏰</span> End Time
-                        </div>
-                        <div style={{ 
-                          fontWeight: '500', 
-                          color: '#ffffff',
-                          fontSize: '14px',
-                          letterSpacing: '0.2px'
-                        }}>
-                          {booking.end ? formatDateTime(booking.end) : 'Open-ended'}
-                        </div>
-                      </div>
-
-                      <div style={{
-                        background: 'rgba(0, 0, 0, 0.3)',
-                        padding: '14px 18px',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                        boxShadow: 'inset 0 2px 8px rgba(0, 0, 0, 0.2)'
-                      }}>
-                        <div style={{ 
-                          fontSize: '11px', 
-                          color: 'rgba(255, 255, 255, 0.4)', 
-                          marginBottom: '6px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          textTransform: 'uppercase',
-                          letterSpacing: '1px',
-                          fontWeight: '600'
-                        }}>
-                          <span style={{ fontSize: '14px' }}>👤</span> User ID
-                        </div>
-                        <div style={{ 
-                          fontWeight: '500', 
-                          color: '#ffffff',
-                          fontSize: '12px',
-                          fontFamily: 'monospace',
-                          letterSpacing: '0.5px'
-                        }}>
-                          {booking.userId ? booking.userId.slice(0, 12) + '...' : 'N/A'}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {booking.status && (
-                      <motion.div
+                    <div
+                      style={{
+                        ...infoCardBase,
+                        padding: '18px',
+                        background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.08), rgba(14, 116, 144, 0.14))',
+                        border: '1px solid rgba(2, 132, 199, 0.18)',
+                        boxShadow: '0 10px 22px rgba(15, 23, 42, 0.08)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        minWidth: isTablet ? '100%' : '170px',
+                        flex: isTablet ? '1 1 100%' : '0 1 210px',
+                        width: '100%'
+                      }}
+                    >
+                      <div style={{ fontSize: '28px' }}>🪑</div>
+                      <div
                         style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '6px 14px',
-                          background: booking.status === 'pending' 
-                            ? 'linear-gradient(135deg, rgba(246, 221, 88, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%)'
-                            : 'linear-gradient(135deg, rgba(74, 222, 128, 0.15) 0%, rgba(34, 197, 94, 0.15) 100%)',
-                          border: `1px solid ${booking.status === 'pending' ? 'rgba(246, 221, 88, 0.3)' : 'rgba(74, 222, 128, 0.3)'}`,
-                          borderRadius: '20px',
-                          fontSize: '11px',
-                          fontWeight: '600',
-                          color: booking.status === 'pending' ? '#F6DD58' : '#4ade80',
-                          textTransform: 'uppercase',
-                          letterSpacing: '1px',
-                          boxShadow: `0 0 15px ${booking.status === 'pending' ? 'rgba(246, 221, 88, 0.2)' : 'rgba(74, 222, 128, 0.2)'}`
+                          fontSize: '18px',
+                          fontWeight: '700',
+                          color: '#0f172a',
+                          letterSpacing: '-0.2px'
                         }}
                       >
-                        <span style={{ fontSize: '8px' }}>●</span>
-                        {booking.status}
-                      </motion.div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column',
-                    gap: '10px',
-                    minWidth: '130px'
-                  }}>
-                    {(booking.status === 'accepted' || booking.status === 'declined' || processedBookings.has(booking._id)) ? (
-                      // Show status after processing
-                      <div style={{
-                        padding: '20px',
-                        background: booking.status === 'accepted' 
-                          ? 'rgba(74, 222, 128, 0.1)' 
-                          : booking.status === 'declined'
-                          ? 'rgba(239, 68, 68, 0.1)'
-                          : 'rgba(74, 222, 128, 0.1)',
-                        border: booking.status === 'accepted'
-                          ? '1px solid rgba(74, 222, 128, 0.3)'
-                          : booking.status === 'declined'
-                          ? '1px solid rgba(239, 68, 68, 0.3)'
-                          : '1px solid rgba(74, 222, 128, 0.3)',
-                        borderRadius: '12px',
-                        textAlign: 'center'
-                      }}>
-                        <div style={{
-                          fontSize: '32px',
-                          marginBottom: '8px',
-                          filter: booking.status === 'accepted'
-                            ? 'drop-shadow(0 0 10px rgba(74, 222, 128, 0.5))'
-                            : booking.status === 'declined'
-                            ? 'drop-shadow(0 0 10px rgba(239, 68, 68, 0.5))'
-                            : 'drop-shadow(0 0 10px rgba(74, 222, 128, 0.5))'
-                        }}>
-                          {booking.status === 'accepted' ? '✓' : booking.status === 'declined' ? '✗' : '✓'}
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          color: booking.status === 'accepted'
-                            ? '#4ade80'
-                            : booking.status === 'declined'
-                            ? '#ef4444'
-                            : '#4ade80',
-                          fontWeight: '600',
-                          textTransform: 'uppercase',
-                          letterSpacing: '1px'
-                        }}>
-                          {booking.status === 'accepted' ? 'Accepted' : booking.status === 'declined' ? 'Declined' : 'Processed'}
-                        </div>
+                        {booking.deskName || booking.locationId || 'Desk'}
                       </div>
-                    ) : (
-                      // Show action buttons only for pending
-                      <>
-                    <motion.button
-                      whileHover={{ 
-                        scale: 1.02,
-                        boxShadow: '0 0 25px rgba(74, 222, 128, 0.4)'
-                      }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => handleAccept(booking)}
-                      disabled={processingId === booking._id}
+                      {booking.locationId && booking.deskName && booking.locationId !== booking.deskName && (
+                        <div
+                          style={{
+                            fontSize: '12px',
+                            color: 'rgba(3, 105, 161, 0.65)',
+                            letterSpacing: '0.4px'
+                          }}
+                        >
+                          {booking.locationId}
+                        </div>
+                      )}
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          color: 'rgba(3, 105, 161, 0.6)',
+                          letterSpacing: '0.4px',
+                          textTransform: 'uppercase'
+                        }}
+                      >
+                        Desk Reference
+                      </div>
+                    </div>
+
+                    <div
                       style={{
-                        padding: '12px 20px',
-                        background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.2) 0%, rgba(34, 197, 94, 0.3) 100%)',
-                        color: '#4ade80',
-                        border: '1px solid rgba(74, 222, 128, 0.3)',
-                        borderRadius: '10px',
-                        fontWeight: '600',
-                        cursor: processingId === booking._id ? 'not-allowed' : 'pointer',
-                        opacity: processingId === booking._id ? 0.5 : 1,
-                        fontSize: '13px',
-                        boxShadow: '0 0 15px rgba(74, 222, 128, 0.2)',
-                        transition: 'all 0.3s ease',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        letterSpacing: '0.5px',
-                        textTransform: 'uppercase'
+                        flex: isTablet ? '1 1 100%' : '1 1 320px',
+                        minWidth: isTablet ? '100%' : '260px'
                       }}
                     >
-                      <span style={{ fontSize: '16px' }}>✓</span>
-                      Accept
-                    </motion.button>
-                    
-                    <motion.button
-                      whileHover={{ 
-                        scale: 1.02,
-                        boxShadow: '0 0 25px rgba(239, 68, 68, 0.4)'
-                      }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => handleDecline(booking)}
-                      disabled={processingId === booking._id}
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: isMobile ? 'column' : 'row',
+                          flexWrap: 'wrap',
+                          alignItems: isMobile ? 'flex-start' : 'center',
+                          gap: isMobile ? '8px' : '10px',
+                          marginBottom: isMobile ? '12px' : '14px'
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '6px 14px',
+                            borderRadius: '999px',
+                            background: statusToken.chipBg,
+                            border: statusToken.chipBorder,
+                            color: statusToken.chipColor,
+                            fontSize: '12px',
+                            fontWeight: '700',
+                            textTransform: 'uppercase',
+                            letterSpacing: '1px',
+                            boxShadow: '0 8px 16px rgba(15, 23, 42, 0.08)'
+                          }}
+                        >
+                          <span>{statusToken.icon}</span>
+                          {statusToken.label}
+                        </div>
+                        {bookingId && (
+                          <div
+                            style={{
+                              fontSize: '12px',
+                              color: '#94a3b8',
+                              letterSpacing: '0.4px'
+                            }}
+                          >
+                            ID: {bookingId.slice(0, 8)}...
+                          </div>
+                        )}
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: isMobile
+                            ? '1fr'
+                            : 'repeat(auto-fit, minmax(220px, 1fr))',
+                          gap: isMobile ? '12px' : '16px'
+                        }}
+                      >
+                        <div
+                          style={{
+                            ...infoCardBase,
+                            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.75), rgba(241, 245, 249, 0.9))'
+                          }}
+                        >
+                          <div
+                            style={{
+                              ...detailLabelStyles,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <span style={{ fontSize: '14px' }}>📅</span>
+                            Start Time
+                          </div>
+                          <div style={detailValueStyles}>{formatDateTime(booking.start)}</div>
+                        </div>
+
+                        <div
+                          style={{
+                            ...infoCardBase,
+                            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.75), rgba(241, 245, 249, 0.9))'
+                          }}
+                        >
+                          <div
+                            style={{
+                              ...detailLabelStyles,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <span style={{ fontSize: '14px' }}>⏰</span>
+                            End Time
+                          </div>
+                          <div style={detailValueStyles}>
+                            {booking.end ? formatDateTime(booking.end) : 'Open ended'}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            ...infoCardBase,
+                            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.75), rgba(241, 245, 249, 0.9))'
+                          }}
+                        >
+                          <div
+                            style={{
+                              ...detailLabelStyles,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <span style={{ fontSize: '14px' }}>👤</span>
+                            User ID
+                          </div>
+                          {requesterToken === 'N/A' ? (
+                            <div
+                              style={{
+                                ...detailValueStyles,
+                                color: '#94a3b8'
+                              }}
+                            >
+                              N/A
+                            </div>
+                          ) : (
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: '8px'
+                              }}
+                            >
+                              <span style={badgeStyles}>{requesterToken}</span>
+                            </div>
+                          )}
+                        </div>
+                        {attendeeIds.length > 0 ? (
+                          <div
+                            style={{
+                              ...infoCardBase,
+                              background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(226, 232, 240, 0.85))'
+                            }}
+                          >
+                            <div
+                              style={{
+                                ...detailLabelStyles,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px'
+                              }}
+                            >
+                                <span style={{ fontSize: '14px' }}>👥</span>
+                              Attendees
+                            </div>
+                            <div
+                              style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: '8px'
+                              }}
+                            >
+                              {attendeeIds.map((attId) => (
+                                <span key={`${bookingKey}-attendee-${attId}`} style={badgeStyles}>
+                                  {formatUserToken(attId)}
+                                </span>
+                              ))}
+                            </div>
+                            </div>
+                          ) : null}
+                      </div>
+                    </div>
+
+                    <div
                       style={{
-                        padding: '12px 20px',
-                        background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(220, 38, 38, 0.3) 100%)',
-                        color: '#ef4444',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                        borderRadius: '10px',
-                        fontWeight: '600',
-                        cursor: processingId === booking._id ? 'not-allowed' : 'pointer',
-                        opacity: processingId === booking._id ? 0.5 : 1,
-                        fontSize: '13px',
-                        boxShadow: '0 0 15px rgba(239, 68, 68, 0.2)',
-                        transition: 'all 0.3s ease',
+                        flex: isTablet ? '1 1 100%' : '0 0 190px',
+                        minWidth: isTablet ? '100%' : '190px',
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        letterSpacing: '0.5px',
-                        textTransform: 'uppercase'
+                        flexDirection: 'column',
+                        gap: isMobile ? '10px' : '12px'
                       }}
                     >
-                      <span style={{ fontSize: '16px' }}>✗</span>
-                      Decline
-                    </motion.button>
-                      </>
-                    )}
+                      {isCompleted ? (
+                        <div
+                          style={{
+                            ...infoCardBase,
+                            padding: '20px',
+                            background: isAccepted
+                              ? 'linear-gradient(135deg, rgba(187, 247, 208, 0.75), rgba(220, 252, 231, 0.8))'
+                              : isDeclined
+                              ? 'linear-gradient(135deg, rgba(254, 202, 202, 0.75), rgba(254, 226, 226, 0.8))'
+                              : 'linear-gradient(135deg, rgba(254, 240, 138, 0.7), rgba(253, 224, 71, 0.75))',
+                            border: isAccepted
+                              ? '1px solid rgba(34, 197, 94, 0.35)'
+                              : isDeclined
+                              ? '1px solid rgba(239, 68, 68, 0.35)'
+                              : '1px solid rgba(217, 119, 6, 0.3)',
+                            textAlign: 'center',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            minHeight: '110px'
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: '30px',
+                              color: isAccepted ? '#166534' : isDeclined ? '#991b1b' : '#92400e'
+                            }}
+                          >
+                            {isAccepted ? '✓' : isDeclined ? '✗' : statusToken.icon}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              textTransform: 'uppercase',
+                              letterSpacing: '1px',
+                              color: isAccepted ? '#166534' : isDeclined ? '#991b1b' : '#92400e'
+                            }}
+                          >
+                            {isAccepted ? 'Accepted' : isDeclined ? 'Declined' : 'Processed'}
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <motion.button
+                            whileHover={{ y: -2, boxShadow: '0 16px 32px rgba(22, 163, 74, 0.25)' }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => handleAccept(booking)}
+                            disabled={isProcessing}
+                            style={{
+                              padding: '12px 20px',
+                              background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.2), rgba(22, 163, 74, 0.3))',
+                              color: '#166534',
+                              border: '1px solid rgba(22, 163, 74, 0.35)',
+                              borderRadius: '12px',
+                              fontWeight: '600',
+                              cursor: isProcessing ? 'not-allowed' : 'pointer',
+                              opacity: isProcessing ? 0.55 : 1,
+                              fontSize: '13px',
+                              boxShadow: '0 8px 18px rgba(22, 163, 74, 0.25)',
+                              transition: 'all 0.25s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px',
+                              width: isTablet ? '100%' : 'auto',
+                              letterSpacing: '0.6px',
+                              textTransform: 'uppercase'
+                            }}
+                          >
+                            <span style={{ fontSize: '16px' }}>✓</span>
+                            Accept
+                          </motion.button>
+
+                          <motion.button
+                            whileHover={{ y: -2, boxShadow: '0 16px 32px rgba(220, 38, 38, 0.25)' }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => handleDecline(booking)}
+                            disabled={isProcessing}
+                            style={{
+                              padding: '12px 20px',
+                              background: 'linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(220, 38, 38, 0.3))',
+                              color: '#991b1b',
+                              border: '1px solid rgba(220, 38, 38, 0.35)',
+                              borderRadius: '12px',
+                              fontWeight: '600',
+                              cursor: isProcessing ? 'not-allowed' : 'pointer',
+                              opacity: isProcessing ? 0.55 : 1,
+                              fontSize: '13px',
+                              boxShadow: '0 8px 18px rgba(220, 38, 38, 0.25)',
+                              transition: 'all 0.25s ease',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px',
+                              width: isTablet ? '100%' : 'auto',
+                              letterSpacing: '0.6px',
+                              textTransform: 'uppercase'
+                            }}
+                          >
+                            <span style={{ fontSize: '16px' }}>✗</span>
+                            Decline
+                          </motion.button>
+
+                          {isProcessing && (
+                            <div
+                              style={{
+                                textAlign: 'center',
+                                fontSize: '11px',
+                                color: '#64748b',
+                                letterSpacing: '0.4px'
+                              }}
+                            >
+                              Working on it...
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>

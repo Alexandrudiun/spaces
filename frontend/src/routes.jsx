@@ -5,6 +5,7 @@ import Login from "./components/Login.jsx";
 import Map from "./components/Map.jsx";
 import Bookings from "./components/Bookings.jsx";
 import FindMyMate from "./components/FindMyMate.jsx";
+import Register from "./components/Register.jsx";
 import AdminBookings from "./components/AdminBookings.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
@@ -27,6 +28,7 @@ const router = createBrowserRouter([
       { path: "map", element: <Map /> },
       { path: "bookings", element: <Bookings /> },
       { path: "admin/bookings", element: <AdminBookings /> },
+      { path: "admin/register", element: <Register /> },
       { path: "find-mate", element: <FindMyMate /> },
       { path: "settings", element: <div className="p-8"><h1 className="text-3xl font-bold">Settings - Coming Soon</h1></div> },
     ],
