@@ -21,7 +21,6 @@ To run the backend the following environment variables need to be set up:
 - ``PORT``
 - ``MONGO_molson_desks``
 - ``MONGO_molson_user``
-- ``appName``
 - ``JWT_SECRET``
 - ``JWT_EXPIRES_IN``
 
@@ -42,6 +41,9 @@ project is MongoDB (noSQL database).
 
 ## Demo Credentials
 
-The database starts with the following
+The demo database starts with users that have following roles:
 
+admin role:
+- email: test@example.com
+- password: Hackathon@1234
 
