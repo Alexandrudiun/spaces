@@ -9,7 +9,8 @@ function Register() {
     username: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    role: 'user'
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -139,7 +140,8 @@ function Register() {
           name: form.name.trim(),
           username: form.username.trim(),
           email: form.email.trim(),
-          password: form.password
+          password: form.password,
+          role: form.role
         })
       });
 
@@ -149,7 +151,7 @@ function Register() {
       }
 
       setSuccess('User successfully registered.');
-      setForm({ name: '', username: '', email: '', password: '', confirmPassword: '' });
+      setForm({ name: '', username: '', email: '', password: '', confirmPassword: '', role: 'user' });
       await fetchUsers();
     } catch (err) {
       console.error('Registration error:', err);
@@ -423,6 +425,25 @@ function Register() {
                     fontSize: isMobile ? '14px' : '16px'
                   }}
                 />
+                <select
+                  name="role"
+                  value={form.role}
+                  onChange={handleChange}
+                  style={{
+                    padding: isMobile ? '11px 12px' : '12px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(148, 163, 184, 0.35)',
+                    background: 'rgba(255, 255, 255, 0.75)',
+                    color: '#0f172a',
+                    fontWeight: '500',
+                    fontSize: isMobile ? '14px' : '16px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="user">User</option>
+                  <option value="manager">Manager</option>
+                  <option value="admin">Admin</option>
+                </select>
               </div>
 
               <motion.button

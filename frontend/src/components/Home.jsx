@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useState } from 'react'
+import JSConfetti from 'js-confetti'
 // eslint-disable-next-line no-unused-vars
 import { motion } from 'framer-motion'
 import {
@@ -94,12 +95,23 @@ const Home = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Confetti animation on login
   useEffect(() => {
-    // Fetch statistics from API
-    fetchStats();
+    const showConfetti = localStorage.getItem('showLoginConfetti');
+    if (showConfetti === 'true') {
+      const confetti = new JSConfetti();
+      confetti.addConfetti({
+        emojis: ['🍺', '🍻', '�', '🍾'],
+        confettiRadius: 6,
+        confettiNumber: 60
+      }).then(() => {
+        localStorage.removeItem('showLoginConfetti');
+      });
+    }
   }, []);
 
   useEffect(() => {
+    // Fetch statistics from API
     fetchStats();
   }, []);
 

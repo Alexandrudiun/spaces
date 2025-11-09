@@ -24,8 +24,8 @@ const SwitchAvatar = ({ currentAvatar, onAvatarUpdate }) => {
     try {
       // Fetch all 10 avatar images
       const avatarUrls = [];
-      for (let i = 1; i <= 9; i++) {
-        avatarUrls.push(`https://molsongbsspaces.onrender.com/images/av${i}.png`);
+      for (let i = 1; i <= 10; i++) {
+        avatarUrls.push(`https://molsongbsspaces.onrender.com/images/av${i}.avif`);
       }
       setAvatars(avatarUrls);
     } catch (err) {
